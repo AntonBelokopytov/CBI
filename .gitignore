@@ -1,0 +1,36 @@
+# Данные и тяжелые файлы
+data/*
+!data/.gitkeep
+*.mat
+*.fif
+*.edf
+*.asv
+
+# Python (база)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+node_modules/
+
+# Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+site-packages/
+
+# Настройки IDE
+**/.spyproject/
+.vscode/
+.idea/
+
+# Секреты (КРИТИЧНО)
+.env
+
+# Системный мусор
+.DS_Store
+Thumbs.db
+
+*.pdf
