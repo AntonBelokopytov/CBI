@@ -8,6 +8,8 @@ for tr_idx=1:n_trials
 end
 Xmean = mean(X,3);
 
+% git change
+
 X_epochs = [];
 for tr_idx=1:n_trials
     mX = X(:,:,tr_idx) - Xmean;
