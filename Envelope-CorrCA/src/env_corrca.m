@@ -1,5 +1,5 @@
 function [W, A, corrs, X_covs, z] = env_corrca(X, ...
-Fs, Wsize, Ssize, n_plot_comp)
+Fs, Wsize, Ssize)
 
 [~, ~, n_trials] = size(X);
 
@@ -7,8 +7,6 @@ for tr_idx=1:n_trials
     X(:,:,tr_idx) = X(:,:,tr_idx) - mean(X(:,:,tr_idx),1);
 end
 Xmean = mean(X,3);
-
-% git change
 
 X_epochs = [];
 for tr_idx=1:n_trials
@@ -25,8 +23,12 @@ for i=1:n_epochs
     end
 end
 mX_covs = mean(X_covs,4);
-Cm = riemann_mean(mX_covs);
-Wm = Cm^-0.5;
+
+Cm = mean(mX_covs,3);
+
+gamma = 0.00001;
+Cm_r = Cm+gamma*eye(size(Cm))*trace(Cm)/size(Cm,1);
+Wm = Cm_r^-0.5;
 
 X_covsVecW = [];
 for i=1:n_epochs
@@ -35,24 +37,13 @@ for i=1:n_epochs
     end
 end
 
-% X_covsVecWm = mean(X_covsVecW,3);
-% X_covsVecWm = X_covsVecWm - mean(X_covsVecWm,2);
-% [Uc,~,~] = svd(X_covsVecWm,'econ');
-% 
-% X_covsVecWdr = [];
-% for i=1:n_trials
-%     X_covsVecWdr(:,:,i) = (Uc' * X_covsVecW(:,:,i))';
-% end
-
-% z = Uc' * X_covsVecWm; z = z';
-
 [Vc, ~, ~] = corrca(X_covsVecW);
 z = mean(X_covsVecW,3) * Vc;
 z = (z - mean(z,1)) ./ std(z,[],1);
 
 Af = mean(X_covsVecW,3)' * z;
 
-W = []; A = [];
+W = []; A = []; eigenvals = [];
 for i=1:size(Vc,2)
     [w, a, s] = project_filters_to_manifold(Af(:,i), Wm, Cm);
     W(i,:,:) = w;
@@ -60,9 +51,9 @@ for i=1:size(Vc,2)
     eigenvals(i,:) = s;
 end
 
-corrs = intertr_corrs(W, X_covs, n_plot_comp);
+corrs = intertr_corrs(W, X_covs, 3);
 
-visualize(z, eigenvals, corrs, n_plot_comp, Wsize, Ssize)
+visualize(z, eigenvals, corrs, 3, Wsize, Ssize)
 
 end
 
@@ -111,7 +102,7 @@ end
 
 function [W, Rw, Rb] = corrca(X)
 
-gamma = 0.; % shrinkage parameter
+gamma = 0.001; % shrinkage parameter
 
 [T, D, N] = size(X);
 

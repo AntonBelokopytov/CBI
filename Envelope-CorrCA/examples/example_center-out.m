@@ -2,16 +2,15 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip\';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip\';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
 end
 
 %% Target epochs
-sub_path = 'C:\Users\ansbel\Documents\data\parkinson\pathology\p1\Patient1_ConditionOff_CenterOut_2-35Hz_clear_epochs.fif';
-% sub_path = 'Control_4_CenterOut_epochs.fif';
-% sub_path = 'D:/OS(CURRENT)/data/parkinson/control/Control_9_CenterOut_epochs.fif';
+sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_ON_EEG_clean_epochs.fif';
+% sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_4_CenterOut_epochs.fif';
 cfg = [];
 cfg.dataset = sub_path; 
 Epochs_inf = ft_preprocessing(cfg); 
@@ -21,15 +20,15 @@ Fs = Epochs_inf.hdr.Fs;
 [~, n_ts_ep] = size(Epochs_inf.trial{1});
 
 %%
-idxs = [  2,   3,   4,   5,   8,  10,  14,  15,  18,  19,  20,  22,  25,...
-        27,  28,  31,  33,  35,  36,  38,  41,  43,  45,  46,  48,  49,...
-        52,  56,  57,  63,  66,  67,  68,  71,  72,  74,  78,  79,  83,...
-        84,  85,  88,  89,  92,  95,  98,  99, 102, 103, 104, 107, 111,...
-       112, 114, 116, 117, 122, 123, 124, 130, 131, 135, 136, 138, 141,...
-       143, 146, 148, 151, 153, 154, 156] + 1;
+idxs = [  0,   1,   4,   5,   7,   8,   9,  10,  13,  15,  17,  18,  19,...
+        24,  25,  27,  30,  32,  33,  35,  38,  39,  41,  43,  45,  46,...
+        50,  53,  55,  57,  58,  59,  62,  63,  66,  67,  69,  70,  73,...
+        74,  75,  76,  80,  82,  84,  85,  87,  89,  91,  94,  95,  96,...
+       100, 101, 103, 106, 107, 110, 113, 114, 117, 118, 123, 124, 127,...
+       128, 129, 130, 133, 135, 137, 141, 143] + 1;
 
-Fmin = 8;
-Fmax = 12;
+Fmin = 15;
+Fmax = 25;
 band = [Fmin Fmax];
 
 Wsize = 0.1;
@@ -39,7 +38,7 @@ Ssize = 0.05;
 
 Fs = Epochs_inf.hdr.Fs;
 
-clear Epochs
+clear Epochs Epochs_alg
 for ep_idx=1:numel(Epochs_inf.trial)  
     Ep = Epochs_inf.trial{ep_idx}';
     Ep = Ep(:,1:38);
@@ -50,22 +49,13 @@ end
 Epochs = Epochs(:,:,idxs);
 Epochs_alg = Epochs_alg(:,:,idxs);
 
-n_plot_comp = 4;
-% [W, A, eigenvals, Epochs_co
-% v, z] = env_corrca(Epochs_alg, Fs, Wsize, Ssize, n_plot_comp);
-% [W, A] = env_pca(Epochs_alg, Fs, Wsize, Ssize);
-% [W, A, corrs, z] = env_hilbert_corrca(Epochs_alg,Fs,Wsize,Ssize,n_plot_comp);
-% [W, A, eigenvals, Epochs_cov, z] = env_laplace_dec(Epochs_alg, Fs, Wsize, Ssize);
-[W, A, eigenvals, Epochs_cov, z] = env_gradient_dec(Epochs_alg, Fs, Wsize, Ssize);
+[W, A] = env_corrca(Epochs_alg, Fs, Wsize, Ssize);
 
 %%
-gl_c = 2;
+gl_c = 1;
 comp_idx = 1;
-% wx = squeeze(W(gl_c,:,comp_idx))';
-% patt = squeeze(A(gl_c,:,comp_idx));
-wx = squeeze(W(:,comp_idx));
-patt = squeeze(A(:,comp_idx));
-
+wx = squeeze(W(gl_c,:,comp_idx))';
+patt = squeeze(A(gl_c,:,comp_idx));
 % wx = squeeze(W(:,comp_idx));
 % patt = squeeze(A(:,comp_idx));
 
