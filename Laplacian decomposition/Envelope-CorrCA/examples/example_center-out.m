@@ -2,14 +2,14 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip\';
+ft_path = 'D:\OS(CURRENT)\scripts\2Git\fieldtrip\';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
 end
 
 %% Target epochs
-sub_path = 'C:\Users\ansbel\Documents\data\parkinson\pathology\p1\Patient1_ConditionOff_CenterOut_2-35Hz_clear_epochs.fif';
+sub_path = 'Patient1_ConditionOff_CenterOut_2-35Hz_clear_epochs.fif';
 % sub_path = 'Control_4_CenterOut_epochs.fif';
 % sub_path = 'D:/OS(CURRENT)/data/parkinson/control/Control_9_CenterOut_epochs.fif';
 cfg = [];
@@ -51,15 +51,14 @@ Epochs = Epochs(:,:,idxs);
 Epochs_alg = Epochs_alg(:,:,idxs);
 
 n_plot_comp = 4;
-% [W, A, eigenvals, Epochs_co
-% v, z] = env_corrca(Epochs_alg, Fs, Wsize, Ssize, n_plot_comp);
+% [W, A, eigenvals, Epochs_cov, z] = env_corrca(Epochs_alg, Fs, Wsize, Ssize, n_plot_comp);
 % [W, A] = env_pca(Epochs_alg, Fs, Wsize, Ssize);
 % [W, A, corrs, z] = env_hilbert_corrca(Epochs_alg,Fs,Wsize,Ssize,n_plot_comp);
 % [W, A, eigenvals, Epochs_cov, z] = env_laplace_dec(Epochs_alg, Fs, Wsize, Ssize);
 [W, A, eigenvals, Epochs_cov, z] = env_gradient_dec(Epochs_alg, Fs, Wsize, Ssize);
 
 %%
-gl_c = 2;
+gl_c = 1;
 comp_idx = 1;
 % wx = squeeze(W(gl_c,:,comp_idx))';
 % patt = squeeze(A(gl_c,:,comp_idx));

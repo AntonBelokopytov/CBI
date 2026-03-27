@@ -63,7 +63,7 @@ for snr_i = 1:Nsnr
 
     SNR = snr_vec(snr_i);
     
-    parfor mc_i = 1:NMC
+    for mc_i = 1:NMC
         
         [Xtrials, Xraw, tm, TgPa] = gen_dat_corrca( ...
             G, NConstSrc, Ntg, flanker, TrLeSe, ...
@@ -72,7 +72,7 @@ for snr_i = 1:Nsnr
         tmraw = repmat(tm,[1,NTr]);
         
         % Laplace
-        [W, A] = env_corrca(Xtrials, Fs, Wsize, Ssize);
+        [W, A] = env_laplace_dec(Xtrials, Fs, Wsize, Ssize);
         
         W = squeeze(W(1,:,:)); W = [W(:,1), W(:,end)];
         A = squeeze(A(1,:,:)); A = [A(:,1), A(:,end)];
