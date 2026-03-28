@@ -1,21 +1,25 @@
-function [X_all_subjects, target_env] = generate_cross_subject_data(G, N_subj, N_distr, N_bg, Fs, Ts, flanker, SNR)
+function [X_all_subjects, target_envs] = generate_cross_subject_data(G, N_subj, N_distr, N_bg, Fs, Ts, flanker, SNR, env_noise)
 % Генерирует межсубъектные данные с индуцированной активностью.
 % Вход:
-% G       - матрица свинцового поля (Leadfield matrix), размер [Nsens, Nsites*3]
-% N_subj  - количество субъектов
-% N_distr - количество распределенных целевых источников (обычно 1 или 2)
-% N_bg    - количество фоновых локальных источников
-% Fs      - частота дискретизации (Гц)
-% Ts      - длина сигнала в секундах
-% flanker - отступы по краям в секундах для устранения краевых эффектов фильтрации
-% SNR     - отношение сигнал/шум для амплитуды целевой огибающей
+% G         - матрица свинцового поля (Leadfield matrix), размер [Nsens, Nsites*3]
+% N_subj    - количество субъектов
+% N_distr   - количество распределенных целевых источников (коррелирующих огибающих)
+% N_bg      - количество фоновых локальных источников
+% Fs        - частота дискретизации (Гц)
+% Ts        - длина сигнала в секундах
+% flanker   - отступы по краям в секундах для устранения краевых эффектов фильтрации
+% SNR       - дисперсия (отношение сигнал/шум) целевых огибающих
+% env_noise - уровень независимого индивидуального шума, добавляемого к целевой огибающей у каждого субъекта
 %
 % Выход:
 % X_all_subjects - 3D матрица сгенерированных данных [Nsens, Nsamples, N_subj]
-% target_env     - общая сгенерированная огибающая целевого ритма [1, Nsamples]
+% target_envs    - общие сгенерированные огибающие целевых ритмов [N_distr, Nsamples]
 
 if nargin < 8
     SNR = 1;
+end
+if nargin < 9
+    env_noise = 0.1; % Небольшой шум к огибающей по умолчанию
 end
 
 Gx = G(:,1:3:end);
@@ -27,14 +31,23 @@ N = Ts * Fs;
 flanker_samples = flanker * Fs;
 total_samples = N + 2*flanker_samples;
 
-% 1. Генерируем ОДНУ общую огибающую (target_env) для всех субъектов
+% 1. Генерируем НЕСКОЛЬКО (N_distr) общих огибающих (target_envs) для всех субъектов
 [be, ae] = butter(2, 0.5 / (Fs / 2), 'low'); % Фильтр нижних частот 0.5 Гц для огибающей
-tm = filtfilt(be, ae, randn(1, total_samples));
-tm = tm(flanker_samples+1 : end-flanker_samples);
-tm = (tm - mean(tm)) / std(tm);
-tm_snr = tm * SNR;
-tm_snr = tm_snr - min(tm_snr) + eps; % Положительная огибающая
-target_env = tm_snr;
+target_envs = zeros(N_distr, N);
+
+for i = 1:N_distr
+    tm = filtfilt(be, ae, randn(1, total_samples));
+    tm = tm(flanker_samples+1 : end-flanker_samples);
+    tm = (tm - mean(tm)) / std(tm);
+
+    % Задаем дисперсию огибающей через SNR (SNR моделируется как дисперсия огибающей)
+    tm_snr = tm * sqrt(SNR);
+
+    % Делаем огибающую строго положительной
+    % (можно через сдвиг, чтобы минимальное значение было чуть больше 0)
+    tm_snr = tm_snr - min(tm_snr) + 0.1;
+    target_envs(i, :) = tm_snr;
+end
 
 % Массивы фильтров для шума
 [bn, an] = butter(4, [1, 35] / (Fs / 2)); % Для белого шума (сенсорный шум)
@@ -55,10 +68,24 @@ for subj_idx = 1:N_subj
         targetA(:,i) = Gx(:,src_idx)*r(1) + Gy(:,src_idx)*r(2) + Gz(:,src_idx)*r(3);
     end
 
-    % b) Генерируем сигналы источников для этого субъекта
-    [XS, X_bg, X_n] = generate_subject_sources(G, N_bg + N_distr, N_distr, Fs, total_samples, flanker_samples, targetA, target_env);
+    % b) Генерируем индивидуальные вариации огибающих (target_envs + env_noise)
+    subj_target_envs = zeros(N_distr, N);
+    for i = 1:N_distr
+        % Генерируем низкочастотный шум
+        subj_noise = filtfilt(be, ae, randn(1, total_samples));
+        subj_noise = subj_noise(flanker_samples+1 : end-flanker_samples);
+        subj_noise = (subj_noise - mean(subj_noise)) / std(subj_noise);
 
-    % c) Суммируем сигнал, фоновый шум и сенсорный шум
+        % Добавляем шум к общей огибающей с заданным уровнем env_noise
+        subj_env = target_envs(i, :) + env_noise * subj_noise;
+        subj_env = subj_env - min(subj_env) + 0.1; % Снова обеспечиваем положительность
+        subj_target_envs(i, :) = subj_env;
+    end
+
+    % c) Генерируем сигналы источников для этого субъекта
+    [XS, X_bg, X_n] = generate_subject_sources(G, N_bg + N_distr, N_distr, Fs, total_samples, flanker_samples, targetA, subj_target_envs);
+
+    % d) Суммируем сигнал, фоновый шум и сенсорный шум
     % Добавляем белый шум X_n
     noise_scale = norm(X_bg, 'fro');
     X = XS + X_bg + 0.1 * X_n * noise_scale / norm(X_n, 'fro');
@@ -71,7 +98,7 @@ end
 % =========================================================================
 % Локальная функция для генерации сигналов одного субъекта
 % =========================================================================
-function [X_s, X_bg, X_n] = generate_subject_sources(G, Nsrc, Ndistr, Fs, total_samples, flanker_samples, targetA, target_env)
+function [X_s, X_bg, X_n] = generate_subject_sources(G, Nsrc, Ndistr, Fs, total_samples, flanker_samples, targetA, subj_target_envs)
 
 Gx = G(:,1:3:end);
 Gy = G(:,2:3:end);
@@ -103,9 +130,9 @@ S = S(:, flanker_samples+1 : end-flanker_samples);
 M = filtfilt(bem, aem, randn(Nsrc, total_samples)')';
 M = M(:, flanker_samples+1 : end-flanker_samples);
 
-% Заменяем огибающую для целевых источников на общую target_env
+% Заменяем огибающую для целевых источников на индивидуализированную subj_target_envs
 for k = 1:Ndistr
-    M(k, :) = target_env;
+    M(k, :) = subj_target_envs(k, :);
 end
 
 % Добавляем вариации к фоновым огибающим и нормализуем
