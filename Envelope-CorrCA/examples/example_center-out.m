@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip\';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip\';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -49,12 +49,12 @@ end
 Epochs = Epochs(:,:,idxs);
 Epochs_alg = Epochs_alg(:,:,idxs);
 
-% [W, A] = env_corrca(Epochs_alg, Fs, Wsize, Ssize);
-[W, A] = env_laplace_dec2(Epochs, Fs, Wsize, Ssize);
+[W, A] = env_corrca(Epochs_alg, Fs, Wsize, Ssize);
+% [W, A] = env_laplace_dec2(Epochs, Fs, Wsize, Ssize);
 
 %%
 gl_c = 1;
-comp_idx = 1;
+comp_idx = 38;
 wx = squeeze(W(gl_c,:,comp_idx))';
 patt = squeeze(A(gl_c,:,comp_idx));
 % wx = squeeze(W(:,comp_idx));
@@ -202,3 +202,5 @@ set(findall(p6, 'type','axes'), 'Color', figCol);
 % ==== Синхронизация осей по X у временных графиков =========================
 linkaxes([axH axERP axENV], 'x');
 
+% Жестко фиксируем границы от -3 до 4
+xlim(axH, [-3, 4]);

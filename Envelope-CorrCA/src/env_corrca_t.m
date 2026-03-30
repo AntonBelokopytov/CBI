@@ -1,58 +1,66 @@
-function [W, A, corrs, X_covs, z] = env_corrca_t(X, ...
-Fs, Wsize, Ssize, n_plot_comp)
-
-[~, ~, n_trials] = size(X);
-
-for tr_idx=1:n_trials
-    X(:,:,tr_idx) = X(:,:,tr_idx) - mean(X(:,:,tr_idx),1);
-end
-Xmean = mean(X,3);
-
-X_epochs = [];
-for tr_idx=1:n_trials
-    mX = X(:,:,tr_idx) - Xmean;
-    mX = mX ./ sqrt(trace(cov(mX)));
-    X_epochs(:,:,:,tr_idx) = epoch_data(mX,Fs,Wsize,Ssize);
-end
-
-[~, ~, n_epochs, ~] = size(X_epochs);
-X_covs = [];
-for ep_i=1:n_epochs
-    for tr_i=1:n_trials
-        X_covs(:,:,ep_i,tr_i) = cov(X_epochs(:,:,ep_i,tr_i));
+function [W, A, corrs, X_covs, z] = env_corrca_t(X, Fs, Wsize, Ssize)
+    [~, n_ch, n_trials] = size(X);
+    
+    for tr_idx=1:n_trials
+        X(:,:,tr_idx) = X(:,:,tr_idx) - mean(X(:,:,tr_idx),1);
     end
-end
-mX_covs = mean(X_covs,4);
-Cm = riemann_mean(mX_covs);
-Wm = Cm^-0.5;
-
-X_covsVecW = []; X_covsVecWT = [];
-for tr_i=1:n_trials
-    X_covsVecWT(:,:,tr_i) = Tangent_space(X_covs(:,:,:,tr_i),Cm)';
-    for ep_i=1:n_epochs
-        X_covsVecW(ep_i,:,tr_i) = cov2upper(Wm*X_covs(:,:,ep_i,tr_i)*Wm');
+    Xmean = mean(X,3);
+    
+    X_epochs = [];
+    for tr_idx=1:n_trials
+        mX = X(:,:,tr_idx) - Xmean;
+        mX = mX ./ sqrt(trace(cov(mX)));
+        X_epochs(:,:,:,tr_idx) = epoch_data(mX, Fs, Wsize, Ssize);
     end
-end
-
-[Vc, ~, ~] = corrca(X_covsVecWT);
-z = mean(X_covsVecWT,3) * Vc;
-z = (z - mean(z,1)) ./ std(z,[],1);
-
-X_covsVecWm = X_covsVecW - mean(X_covsVecW,2);
-Af = X_covsVecWm' * z;
-
-W = []; A = [];
-for i=1:size(Vc,2)
-    [w, a, s] = project_filters_to_manifold(Af(:,i), Wm, Cm);
-    W(i,:,:) = w;
-    A(i,:,:) = a;
-    eigenvals(i,:) = s;
-end
-
-corrs = intertr_corrs(W, X_covs, n_plot_comp);
-
-visualize(z, eigenvals, corrs, n_plot_comp, Wsize, Ssize)
-
+    [~, ~, n_epochs, ~] = size(X_epochs);
+    
+    X_covs = zeros(n_ch, n_ch, n_epochs, n_trials);
+    gamma = 1e-5; 
+    
+    for i=1:n_epochs
+        for j=1:n_trials
+            C = cov(X_epochs(:,:,i,j));
+            C_reg = C + gamma * eye(n_ch) * (trace(C) / n_ch);
+            X_covs(:,:,i,j) = C_reg;
+        end
+    end
+    
+    X_covs_flat = reshape(X_covs, n_ch, n_ch, n_epochs * n_trials);
+    Cm = riemann_mean(X_covs_flat); 
+    X_covsT_flat = Tangent_space(X_covs_flat, Cm);
+    
+    n_features = n_ch * (n_ch + 1) / 2;
+    X_covsT = reshape(X_covsT_flat, n_features, n_epochs, n_trials);
+    X_covsT = permute(X_covsT, [2, 1, 3]); 
+    
+    [Vc, ~, ~] = corrca(X_covsT);
+    
+    z = mean(X_covsT, 3) * Vc;
+    z = (z - mean(z, 1)) ./ std(z, [], 1);
+    
+    Cm_euc = mean(mean(X_covs, 4), 3);
+    Cm_euc_reg = Cm_euc + gamma * eye(n_ch) * (trace(Cm_euc) / n_ch);
+    Wm = Cm_euc_reg^-0.5;
+    
+    X_covsVecW = zeros(n_epochs, n_features, n_trials);
+    for i=1:n_epochs
+        for j=1:n_trials
+            X_covsVecW(i,:,j) = cov2upper(Wm * X_covs(:,:,i,j) * Wm');
+        end
+    end
+    
+    Af = mean(X_covsVecW, 3)' * z;
+    
+    W = []; A = []; eigenvals = [];
+    for i=1:size(Vc,2)
+        [w, a, s] = project_filters_to_manifold(Af(:,i), Wm, Cm_euc);
+        W(i,:,:) = w;
+        A(i,:,:) = a;
+        eigenvals(i,:) = s;
+    end
+    
+    corrs = intertr_corrs(W, X_covs, 3);
+    visualize(z, eigenvals, corrs, 3, Wsize, Ssize)
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -100,7 +108,7 @@ end
 
 function [W, Rw, Rb] = corrca(X)
 
-gamma = 0.; % shrinkage parameter
+gamma = 0.001; % shrinkage parameter
 
 [T, D, N] = size(X);
 
@@ -152,13 +160,6 @@ function [W, A, S] = project_filters_to_manifold(V, Wm, Cxx)
 WW = upper2cov(V);
 
 [Uw,S] = eig(WW);S=diag(S);[S,idxs]=sort(S,'descend');Uw=Uw(:,idxs);
-% [Uw,S,~] = svd(WW);s=diag(S);
-% stem(s)
-% xlabel('number of component')
-% ylabel('\lambda value')
-% title('Spectrum of eigenvalues of the matrix W')
-% Optionally svd() could be used instead of eig() (Result is the same. Order differs)
-% [Uw,~,~] = svd(WW);
 
 % Normalization and pattern recovery
 for local_src_idx=1:size(Uw,2)
@@ -275,5 +276,3 @@ function visualize(z, eigenvalues, corrs, n_comp, Wsize, Ssize)
         end
     end
 end
-
-% =========================================================================

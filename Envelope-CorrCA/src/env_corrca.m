@@ -57,7 +57,7 @@ visualize(z, eigenvals, corrs, 3, Wsize, Ssize)
 
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% =========================================================================
 
 function X_epo = epoch_data(X, Fs, Ws, Ss)
 
@@ -72,33 +72,37 @@ end
 
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% =========================================================================
 
 function [v] = cov2upper(C)
-    upper_triu_mask = triu(true(size(C)),1);
-    upper_mask = triu(true(size(C)));
-    C(upper_triu_mask) = C(upper_triu_mask)*sqrt(2);
-    upper_triangle = C(upper_mask);
-    v = upper_triangle(:);
+
+upper_triu_mask = triu(true(size(C)),1);
+upper_mask = triu(true(size(C)));
+C(upper_triu_mask) = C(upper_triu_mask)*sqrt(2);
+upper_triangle = C(upper_mask);
+v = upper_triangle(:);
+
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% =========================================================================
 
 function C = upper2cov(v)
-    n = (-1 + sqrt(1 + 8 * numel(v))) / 2;
-    assert(mod(n,1) == 0, 'Vector length does not correspond to a triangular matrix.');
 
-    C = zeros(n);
-    upper_mask = triu(true(n));
-    C(upper_mask) = v;
+n = (-1 + sqrt(1 + 8 * numel(v))) / 2;
+assert(mod(n,1) == 0, 'Vector length does not correspond to a triangular matrix.');
 
-    upper_triu_mask = triu(true(n), 1);
-    C(upper_triu_mask) = C(upper_triu_mask) / sqrt(2);
+C = zeros(n);
+upper_mask = triu(true(n));
+C(upper_mask) = v;
 
-    C = C + triu(C, 1)';
+upper_triu_mask = triu(true(n), 1);
+C(upper_triu_mask) = C(upper_triu_mask) / sqrt(2);
+
+C = C + triu(C, 1)';
+
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% =========================================================================
 
 function [W, Rw, Rb] = corrca(X)
 
@@ -146,7 +150,7 @@ W = W(:, indx);
 
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% =========================================================================
 
 function [W, A, S] = project_filters_to_manifold(V, Wm, Cxx)
 
@@ -174,7 +178,7 @@ end
 
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% =========================================================================
 
 function corrs = intertr_corrs(W, X_covs, n_filters_to_eval)    
     % W: [n_filters, n_channels, n_components]
@@ -214,7 +218,7 @@ function corrs = intertr_corrs(W, X_covs, n_filters_to_eval)
     end
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% =========================================================================
 
 function visualize(z, eigenvalues, corrs, n_comp, Wsize, Ssize)
     % z: [n_epochs, n_z] — огибающие
@@ -279,56 +283,3 @@ function visualize(z, eigenvalues, corrs, n_comp, Wsize, Ssize)
 end
 
 % =========================================================================
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% function [W, A, S] = eig_dec(Epochs_covW, Wm, Cxx)
-% 
-% gamma = 0.001;
-% 
-% [~, n_channels, n_epochs, n_trials] = size(Epochs_covW);
-% 
-% for sub_idx=1:n_trials
-%     tr = trace(mean(Epochs_covW(:,:,:,sub_idx),3));
-%     for i=1:n_epochs
-%         Ci = Epochs_covW(:,:,i,sub_idx);
-%         Epochs_covW(:,:,i,sub_idx) = Ci / tr;
-%     end
-% 
-%     m = mean(Epochs_covW(:,:,:,sub_idx),3);
-%     for i=1:n_epochs
-%         Ci = Epochs_covW(:,:,i,sub_idx);
-%         Epochs_covW(:,:,i,sub_idx) = Ci - m;
-%     end
-% end
-% 
-% Rw = zeros(n_channels,n_channels);
-% Rb = zeros(n_channels,n_channels);
-% for ep_idx=1:n_epochs
-%     for i=1:n_trials
-%         Ci = Epochs_covW(:,:,ep_idx,i);
-%         Rw = Rw+Ci*Ci;
-%         for j=i+1:n_trials
-%             Cj = Epochs_covW(:,:,ep_idx,j); 
-%             Rb = Rb+Ci*Cj;
-%         end
-%     end
-% end
-% Rw = (Rw + Rw') / 2;
-% Rb = (Rb + Rb') / 2;
-% 
-% Rw = Rw/n_trials/n_epochs;
-% Rb = Rb/(n_trials*(n_trials-1))/n_epochs;
-% 
-% Rw = (1-gamma)*Rw + gamma*mean(eig(Rw))*eye(size(Rw));
-% 
-% [w,S]=eig(Rb,Rw); [S,indx]=sort(diag(S),'descend'); w=w(:,indx);
-% Wpr = Wm*w;
-% 
-% for comp_idx=1:size(Wpr,2)
-%     Wprn = Wpr(:,comp_idx) / sqrt(Wpr(:,comp_idx)' * Cxx * Wpr(:,comp_idx));
-%     W(:,comp_idx) = Wprn;
-%     A(:,comp_idx) = Cxx * Wprn / (Wprn' * Cxx * Wprn);
-% end
-% 
-% end
