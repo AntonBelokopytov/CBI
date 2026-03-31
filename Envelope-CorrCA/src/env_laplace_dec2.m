@@ -170,7 +170,9 @@ function W = build_graph_from_dists(Dists, N_neigb)
 end
 
 function a = distance_riemann(A,B)
-    a = sqrt(sum(real(log(eig(A,B))).^2));
+
+    a = sqrt(sum(log(eig(A,B)).^2));
+
 end
 
 function [v] = cov2upper(C)

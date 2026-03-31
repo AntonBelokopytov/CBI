@@ -23,7 +23,7 @@ tm = tm(:,flanker*Fs+1:end-flanker*Fs);
 tm = (tm - mean(tm,2)) / std(tm,[],2);
 
 [~, XBgConst] = generate_distributed_sources( ...
-    G, NConstSrc, ...te
+    G, NConstSrc, ...
     Ntg, flanker, TrLeSe*NTr, Fs, false, false);
 
 nSamplesTrial = TrLeSe * Fs;

@@ -9,8 +9,8 @@ if ~exist('ft_defaults','file')
 end
 
 %% Target epochs
-sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_OFF_EEG_clean_epochs.fif';
-% sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_4_CenterOut_epochs.fif';
+sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_ON_EEG_clean_epochs.fif';
+% sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_7_CenterOut_epochs.fif';
 cfg = [];
 cfg.dataset = sub_path; 
 Epochs_inf = ft_preprocessing(cfg); 
@@ -20,19 +20,28 @@ Fs = Epochs_inf.hdr.Fs;
 [~, n_ts_ep] = size(Epochs_inf.trial{1});
 
 %%
-idxs = [  0,   1,   2,   3,   6,   8,  12,  13,  15,  16,  17,  19,  22,...
-        24,  25,  28,  30,  32,  33,  35,  37,  39,  41,  42,  44,  45,...
-        48,  50,  51,  55,  57,  58,  59,  62,  63,  65,  69,  70,  73,...
-        74,  75,  78,  79,  82,  85,  88,  89,  92,  93,  94,  97, 100,...
-       101, 103, 105, 106, 109, 110, 111, 116, 117, 120, 121, 123, 125,...
-       127, 130, 131, 133, 135, 136, 137] + 1;
+% idxs = [  0,   1,   2,   3,   6,   8,  12,  13,  15,  16,  17,  19,  22,...
+%         24,  25,  28,  30,  32,  33,  35,  37,  39,  41,  42,  44,  45,...
+%         48,  50,  51,  55,  57,  58,  59,  62,  63,  65,  69,  70,  73,...
+%         74,  75,  78,  79,  82,  85,  88,  89,  92,  93,  94,  97, 100,...
+%        101, 103, 105, 106, 109, 110, 111, 116, 117, 120, 121, 123, 125,...
+%        127, 130, 131, 133, 135, 136, 137] + 1;
+idxs = [  0,   1,   4,   5,   7,   8,   9,  10,  13,  15,  17,  18,  19,...
+        24,  25,  27,  30,  32,  33,  35,  38,  39,  41,  43,  45,  46,...
+        50,  53,  54,  56,  58,  59,  60,  64,  65,  68,  69,  71,  72,...
+        75,  76,  77,  78,  82,  84,  86,  87,  89,  91,  93,  96,  97,...
+        98, 102, 103, 105, 108, 109, 112, 115, 116, 119, 120, 125, 126,...
+       129, 130, 131, 132, 135, 137, 139, 143, 145] + 1;
+
+all_idxd = 1:numel(Epochs_inf.trial);
+% idxs = setdiff(all_idxd, idxs); 
 
 Fmin = 9;
 Fmax = 14;
 band = [Fmin Fmax];
 
-Wsize = 0.125;
-Ssize = 0.05;
+Wsize = 1/Fmin;
+Ssize = Wsize/2;
 
 [b_band,a_band] = butter(4, band/(Fs/2));
 
@@ -46,15 +55,16 @@ for ep_idx=1:numel(Epochs_inf.trial)
     Epochs(:,:,ep_idx) = Epfilt;
     Epochs_alg(:,:,ep_idx) = Epfilt(Fs/2+1:end-Fs/2,:);
 end
+
 Epochs = Epochs(:,:,idxs);
 Epochs_alg = Epochs_alg(:,:,idxs);
 
-[W, A] = env_corrca(Epochs_alg, Fs, Wsize, Ssize);
+[W, A] = env_corrca(Epochs_alg(:,:,:), Fs, Wsize, Ssize);
 % [W, A] = env_laplace_dec2(Epochs, Fs, Wsize, Ssize);
 
 %%
 gl_c = 1;
-comp_idx = 38;
+comp_idx = 1;
 wx = squeeze(W(gl_c,:,comp_idx))';
 patt = squeeze(A(gl_c,:,comp_idx));
 % wx = squeeze(W(:,comp_idx));

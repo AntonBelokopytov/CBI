@@ -36,9 +36,6 @@ tm_snr = tm * SNR;
 tm_snr = tm_snr - min(tm_snr) + eps; % Положительная огибающая
 target_env = tm_snr;
 
-% Массивы фильтров для шума
-[bn, an] = butter(4, [1, 35] / (Fs / 2)); % Для белого шума (сенсорный шум)
-
 % Предварительно выделяем память для всех субъектов
 X_all_subjects = zeros(Nsens, N, N_subj);
 
@@ -109,7 +106,7 @@ for k = 1:Ndistr
 end
 
 % Добавляем вариации к фоновым огибающим и нормализуем
-for k = Ndistr+1:Nsrc
+for k = 1:Nsrc
     m = M(k,:);
     m = (m - mean(m)) / std(m);
 
