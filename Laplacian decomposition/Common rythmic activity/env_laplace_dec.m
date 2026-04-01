@@ -1,4 +1,4 @@
-function [W_out, A_out, corrs, Epochs_cov, z] = env_laplace_dec2(X, Fs, Wsize, Ssize, N_neigb, lambda, n_plot_comps)    
+function [A_out, W_out, z, Epochs_cov] = env_laplace_dec2(X, Fs, Wsize, Ssize, N_neigb, lambda, n_plot_comps)    
     if nargin < 5 || isempty(N_neigb), N_neigb = []; end
     if nargin < 6 || isempty(lambda), lambda = 1e-6; end
     if nargin < 7 || isempty(n_plot_comps), n_plot_comps = 3; end
@@ -20,84 +20,118 @@ function [W_out, A_out, corrs, Epochs_cov, z] = env_laplace_dec2(X, Fs, Wsize, S
     [~, ~, n_epochs, ~] = size(X_epochs);
     if isempty(N_neigb), N_neigb = n_epochs; end
     Epochs_cov = zeros(n_ch, n_ch, n_epochs, n_trials); 
+    Epochs_cov_reg = zeros(n_ch, n_ch, n_epochs, n_trials); 
     
-    % 1. Считаем регуляризованные ковариации
-    for i=1:n_epochs
+    parfor i=1:n_epochs
         for j=1:n_trials
             C = cov(X_epochs(:,:,i,j));
             C_reg = C + lambda * (trace(C) / n_ch) * eye(n_ch);
             C_reg = (C_reg + C_reg') / 2; 
-            Epochs_cov(:,:,i,j) = C_reg;
+
+            Epochs_cov(:,:,i,j) = C;
+            Epochs_cov_reg(:,:,i,j) = C_reg;
         end
     end
     
-    % 2. Построение консенсусного графа Лапласа
-    All_W = zeros(n_epochs, n_epochs, n_trials);
-    for tr_idx=1:n_trials 
-        Trial_Dists = calc_riemann_dists(Epochs_cov(:,:,:,tr_idx));
-        All_W(:,:,tr_idx) = build_graph_from_dists(Trial_Dists, N_neigb);
+    Dists = zeros(n_epochs, n_epochs, n_trials);
+    parfor tr_idx=1:n_trials 
+        Trial_Dists = calc_riemann_dists(Epochs_cov_reg(:,:,:,tr_idx));
+        Trial_Dists = Trial_Dists ./ std( Trial_Dists(triu( true(size(Trial_Dists,1)) ,1)) );
+        Dists(:,:,tr_idx) = Trial_Dists;
     end
     
-    W_graph = mean(All_W, 3);
-    D_graph = diag(sum(W_graph, 2)); 
-    L = D_graph - W_graph;
+    mDists = mean(Dists,3);
+    W = build_w(mDists);
     
-    % 3. Совместная диагонализация (поиск огибающих z)
-    [V, S] = eig(L, D_graph);
+    D = diag(sum(W, 2)); 
+    L = D - W;
+    
+    [V, S] = eig(L, D);
     S = diag(S); 
     [S, idx] = sort(S,'ascend'); 
     V = V(:,idx);
     
     valid_idx = S > 0; 
-    valid_idx(1) = false; % Убираем тривиальный вектор
+    valid_idx(1) = false;
     
     V = V(:,valid_idx);
     z = V; 
     z = (z - mean(z,1)) ./ std(z,[],1);
     
     % =====================================================================
-    % 4. Восстановление пространственных фильтров и паттернов
+    % 4. Индивидуальный SPoC для каждого трайла по огибающей z
     % =====================================================================
+    n_z = 3;
     
-    % Вычисление средней ковариации и матрицы отбеливания (Whitening)
-    Cm = mean(mean(Epochs_cov, 4), 3);
-    gamma_w = 1e-5;
-    Cm_r = Cm + gamma_w * eye(size(Cm)) * (trace(Cm) / size(Cm,1));
-    Wm = Cm_r^(-0.5);
+    % Теперь фильтры и паттерны хранятся для каждого трайла отдельно
+    % Размерности: [Индекс_z, Индекс_компоненты_SPoC, Каналы, Трайлы]
+    W_out = zeros(n_z, n_ch, n_ch, n_trials); 
+    A_out = zeros(n_z, n_ch, n_ch, n_trials);
+    eigenvals_all = zeros(n_z, n_ch, n_trials);
     
-    % Векторизация отбеленных ковариаций (переход в касательное пространство)
-    n_features = n_ch * (n_ch + 1) / 2;
-    X_covsVecW = zeros(n_epochs, n_features, n_trials);
-    for i=1:n_epochs
-        for j=1:n_trials
-            Cw = Wm * Epochs_cov(:,:,i,j) * Wm';
-            X_covsVecW(i,:,j) = cov2upper(Cw);
+    parfor c = 1:n_z
+        z_c = z(:, c); % Берем целевую огибающую (она уже с нулевым средним)
+        
+        for tr = 1:n_trials
+            % Вытягиваем ковариации для данного трайла
+            C_tr = squeeze(Epochs_cov(:,:,:,tr)); 
+            
+            % 1. Средняя ковариация (базовый уровень)
+            C_mean = mean(C_tr, 3);
+                        
+            % 2. z-взвешенная ковариация (матрица комодуляции)
+            C_tr = C_tr - C_mean;
+
+            gamma = 0.00001;
+            C_m_reg = C_mean+gamma*eye(size(C_mean))*trace(C_mean)/size(C_mean,1);
+            Wm = C_m_reg^-0.5;
+
+            C_z = zeros(n_ch, n_ch);
+            for ep = 1:n_epochs
+                C_z = C_z + Wm * C_tr(:,:,ep) * z_c(ep) * Wm';
+            end
+            C_z = C_z / n_epochs;
+            
+            % 3. Решаем GEVP: C_z * W = lambda * C_mean * W
+            [W_spoc, D_spoc] = eig(C_z);
+            evals = diag(D_spoc);
+            
+            % Сортируем по абсолютному значению (модулю комодуляции)
+            [~, sort_idx] = sort(abs(evals), 'descend');
+            W_spoc = Wm * W_spoc(:, sort_idx);
+            evals = evals(sort_idx);
+            
+            % 4. Нормировка фильтров и вычисление паттернов
+            A_spoc = zeros(n_ch, n_ch);
+            for f_idx = 1:n_ch
+                w_f = W_spoc(:, f_idx);
+                % Нормируем фильтр, чтобы дисперсия была равна 1 (w' * C_mean * w = 1)
+                w_norm = w_f / sqrt(w_f' * C_mean * w_f);
+                W_spoc(:, f_idx) = w_norm;
+                
+                % Паттерн = C_mean * W
+                A_spoc(:, f_idx) = C_mean * w_norm;
+            end
+            
+            % Сохраняем фильтры (транспонируем для удобства применения)
+            W_out(c, :, :, tr) = W_spoc'; 
+            A_out(c, :, :, tr) = A_spoc;
+            eigenvals_all(c, :, tr) = evals';
         end
     end
     
-    % Регрессия пространственных признаков на временную динамику z
-    Mean_CovsVecW = mean(X_covsVecW, 3);
-    Af = Mean_CovsVecW' * z; 
+    % Для визуализатора усредним модули собственных значений
+    eigenvals_mean = mean(abs(eigenvals_all), 3);
     
-    n_z = size(z, 2);
-    W_out = zeros(n_z, n_ch, n_ch); 
-    A_out = zeros(n_z, n_ch, n_ch);
-    eigenvals = zeros(n_z, n_ch);
-    
-    for i=1:n_z
-        [w, a, s] = project_filters_to_manifold(Af(:,i), Wm, Cm);
-        W_out(i,:,:) = w;
-        A_out(i,:,:) = a;
-        eigenvals(i,:) = s';
-    end
-    
+    % =====================================================================
     % 5. Вычисление корреляций между триалами
-    corrs = intertr_corrs(W_out, Epochs_cov, n_plot_comps);
+    % =====================================================================
+    corrs = intertr_corrs(W_out, Epochs_cov_reg, n_plot_comps);
     
     % 6. Визуализация результатов
-    visualize(z, eigenvals, corrs, n_plot_comps, Wsize, Ssize);
+    visualize(z, eigenvals_mean, corrs, n_plot_comps, Wsize, Ssize);
+    
 end
-
 % =========================================================================
 % Вспомогательные функции
 % =========================================================================
@@ -127,71 +161,16 @@ function Dists = calc_riemann_dists(Covs)
     Dists = (Dists + Dists');
 end
 
-function W = build_graph_from_dists(Dists, N_neigb)
-    n = size(Dists, 1);
-    k = max(10, min(N_neigb, n - 1)); 
-    
-    % 1. Находим локальный масштаб sigma для каждой эпохи
-    % sigma_i - это расстояние до k-го соседа
-    sigmas = zeros(n, 1);
-    for i = 1:n
-        distances_i = Dists(i, :);
-        % Сортируем расстояния по возрастанию
-        sorted_dists = sort(distances_i, 'ascend');
-        
-        % Теперь вызов (k + 1) абсолютно безопасен
-        sigmas(i) = sorted_dists(k + 1);
-        
-        % Защита от нулевого sigma (если есть идентичные эпохи)
-        if sigmas(i) < 1e-10
-            sigmas(i) = 1e-10;
-        end
-    end
-    
-    % 2. Строим матрицу весов (Self-Tuning Gaussian Kernel)
-    W = zeros(n, n);
-    for i = 1:n
-        for j = i+1:n
-            % Возводим расстояние в квадрат для Гауссиана
-            d_sq = Dists(i, j)^2; 
-            
-            % Перемножаем локальные масштабы точек i и j
-            scale = sigmas(i) * sigmas(j); 
-            
-            % Вычисляем вес связи
-            w_val = exp(-d_sq / scale);
-            
-            W(i, j) = w_val;
-            W(j, i) = w_val; % Граф сразу получается симметричным
-        end
-    end
-    
-    W = W - diag(diag(W)); 
-end
-
 function a = distance_riemann(A,B)
 
     a = sqrt(sum(log(eig(A,B)).^2));
 
 end
 
-function [v] = cov2upper(C)
-    upper_triu_mask = triu(true(size(C)),1);
-    upper_mask = triu(true(size(C)));
-    C(upper_triu_mask) = C(upper_triu_mask)*sqrt(2);
-    upper_triangle = C(upper_mask);
-    v = upper_triangle(:);
-end
-
-function C = upper2cov(v)
-    n = (-1 + sqrt(1 + 8 * numel(v))) / 2;
-    assert(mod(n,1) == 0, 'Vector length does not correspond to a triangular matrix.');
-    C = zeros(n);
-    upper_mask = triu(true(n));
-    C(upper_mask) = v;
-    upper_triu_mask = triu(true(n), 1);
-    C(upper_triu_mask) = C(upper_triu_mask) / sqrt(2);
-    C = C + triu(C, 1)';
+function W = build_w(Dists)    
+    % W = exp(-((Dists - mu).^2) ./ sigma);
+    W = 1 ./ Dists; 
+    W(logical(eye(size(W)))) = 0;
 end
 
 function [W_pr, A_pr, S_pr] = project_filters_to_manifold(V, Wm, Cxx)
@@ -214,23 +193,28 @@ function [W_pr, A_pr, S_pr] = project_filters_to_manifold(V, Wm, Cxx)
 end
 
 function corrs = intertr_corrs(W, X_covs, n_filters_to_eval)    
-    [n_filters, ~, n_components] = size(W);
-    [~, ~, n_epochs, n_trials] = size(X_covs);
+    % W имеет размер: [n_z, n_components, n_ch, n_trials]
+    [n_z, n_components, n_ch, n_trials] = size(W);
+    [~, ~, n_epochs, ~] = size(X_covs);
     
-    n_to_do = min(n_filters_to_eval, n_filters);
+    n_to_do = min(n_filters_to_eval, n_z);
     corrs = zeros(n_to_do, n_components);
     
     for f_idx = 1:n_to_do
         for comp_idx = 1:n_components
             Envs = zeros(n_epochs, n_trials);
-            w = squeeze(W(f_idx, :, comp_idx)); 
-            if isrow(w), w = w'; end 
             
-            for ep_idx = 1:n_epochs
-                for tr_idx = 1:n_trials
+            % Применяем ИНДИВИДУАЛЬНЫЙ фильтр к каждому трайлу
+            for tr_idx = 1:n_trials
+                w = squeeze(W(f_idx, comp_idx, :, tr_idx)); 
+                if isrow(w), w = w'; end 
+                
+                for ep_idx = 1:n_epochs
                     Envs(ep_idx, tr_idx) = w' * X_covs(:, :, ep_idx, tr_idx) * w;
                 end
             end
+            
+            % Считаем попарную межтрайловую корреляцию полученных огибающих
             inters_c = corr(Envs);
             corr_mask = triu(true(size(inters_c)), 1);
             corrs(f_idx, comp_idx) = mean(inters_c(corr_mask));

@@ -20,7 +20,7 @@ end
 [be, ae] = butter(2, 0.5 / (Fs / 2), 'low'); 
 tm = filtfilt(be,ae,randn(Ntg,TrLeSe*Fs + 2*flanker*Fs)')';
 tm = tm(:,flanker*Fs+1:end-flanker*Fs);
-tm = (tm - mean(tm,2)) / std(tm,[],2);
+tm = (tm - mean(tm,2)) ./ std(tm,[],2);
 
 [~, XBgConst] = generate_distributed_sources( ...
     G, NConstSrc, ...

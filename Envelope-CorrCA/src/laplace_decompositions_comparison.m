@@ -38,17 +38,17 @@ G = load('D:\OS(CURRENT)\data\simulation_support_data\eeg\MNE_EEG_FWD_TRPL.mat')
 
 %%  
 NConstSrc = 91; 
-Ntg = 2; 
+Ntg = 1; 
 flanker = 1; 
-TrLeSe = 5; 
+TrLeSe = 30; 
 Fs = 100; 
-NTr = 50; 
+NTr = 20; 
 NLclSrc = 11;
 Wsize = 1 / 8; 
 Ssize = Wsize/2;
 
 %%
-SNR = 5;
+SNR = 10;
 
 [Xtrials, Xraw, tm, TgPa] = gen_dat_corrca( ...
     G, NConstSrc, Ntg, flanker, TrLeSe, ...
@@ -61,16 +61,20 @@ figure
 plot(tm')
 
 figure
-topo.avg = TgPa;
+topo.avg = TgPa(:,1);
 ft_topoplotER(cfg, topo);
 
-%%
+%% 
 mc_i = 1;
 
-[z] = env_laplace_dec2(Xtrials, Fs, Wsize, Ssize);
+Wsize = 1;
+Ssize = 0.1;
+[W,A,z] = env_laplace_dec2(Xtrials, Fs, Wsize, Ssize);
 
-W = squeeze(W(1,:,:)); W = [W(:,1), W(:,end)];
-A = squeeze(A(1,:,:)); A = [A(:,1), A(:,end)];
+%%
+figure
+topo.avg = A(1,:,end);
+ft_topoplotER(cfg, topo);
 
 %%
 env_corr = []; env_spoc = [];
