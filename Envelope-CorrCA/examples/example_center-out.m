@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip\';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip\';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -59,16 +59,22 @@ end
 Epochs = Epochs(:,:,idxs);
 Epochs_alg = Epochs_alg(:,:,idxs);
 
-% [W, A] = env_corrca(Epochs_alg(:,:,:), Fs, Wsize, Ssize);
-[z] = env_laplace_dec2(Epochs_alg, Fs, Wsize, Ssize);
+% [z_trials, X_epochs, X_covs] = env_grad_dec(Epochs_alg, Fs, Wsize, Ssize);
+[z_trials, W, A, X_epochs, X_covs] = env_grad_dec(Epochs_alg, Fs, Wsize, Ssize);
+
+%%
+plot(mean(z_trials(:,1,:),3))
+
+%%
+plot(z_trials(:,1,33))
 
 %%
 gl_c = 2;
 comp_idx = 1;
-wx = squeeze(W(gl_c,:,comp_idx))';
-patt = squeeze(A(gl_c,:,comp_idx));
-% wx = squeeze(W(:,comp_idx));
-% patt = squeeze(A(:,comp_idx));
+% wx = squeeze(W(gl_c,:,comp_idx))';
+% patt = squeeze(A(gl_c,:,comp_idx));
+wx = squeeze(W(:,comp_idx));
+patt = squeeze(A(:,comp_idx));
 
 patt = patt * sign(patt(abs(patt)==max(abs(patt))));
 

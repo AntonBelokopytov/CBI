@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'D:\OS(CURRENT)\scripts\2Git\fieldtrip';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -38,7 +38,7 @@ G = load('D:\OS(CURRENT)\data\simulation_support_data\eeg\MNE_EEG_FWD_TRPL.mat')
 
 %%  
 NConstSrc = 91; 
-Ntg = 2; 
+Ntg = 1; 
 flanker = 1; 
 TrLeSe = 5; 
 Fs = 100; 
@@ -48,7 +48,7 @@ Wsize = 1 / 8;
 Ssize = Wsize/2;
 
 %%
-SNR = 5;
+SNR = 3;
 
 [Xtrials, Xraw, tm, TgPa] = gen_dat_corrca( ...
     G, NConstSrc, Ntg, flanker, TrLeSe, ...
@@ -67,7 +67,7 @@ ft_topoplotER(cfg, topo);
 %%
 mc_i = 1;
 
-[z] = env_laplace_dec2(Xtrials, Fs, Wsize, Ssize);
+[W, A, Epochs_cov, z] = env_pca(Xtrials, Fs, Wsize, Ssize);
 
 W = squeeze(W(1,:,:)); W = [W(:,1), W(:,end)];
 A = squeeze(A(1,:,:)); A = [A(:,1), A(:,end)];
@@ -88,8 +88,11 @@ env_corr_spoc(mc_i) = b_corr_env
 patt_corr_spoc(mc_i) = abs(corr(b_a,TgPa))
 
 %% FastICA
+% [Aica, Wica] = fastica(Xraw, ...
+%             'numOfIC', 60, ...
+%             'verbose', 'off');
 [Aica, Wica] = fastica(Xraw, ...
-            'numOfIC', 64, ...
+            'numOfIC', 30, ...
             'approach', 'symm', ... 
             'g', 'tanh', ...        
             'verbose', 'off');
