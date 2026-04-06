@@ -78,7 +78,7 @@ function [W, A, Vf, Vz, corrs, Feat, Epochs_cov, eigenvalues] = espoc(X_epochs, 
 % - Eigen-decomposition of reconstructed matrices yields
 %   "local spatial modes" (rank-1 components).
 % - W and A provide interpretable spatial filters and patterns
-%   within the standard EEG/MEG forward model.
+%   within the standard EEG/MEG forward model. 
 
 opt= propertylist2struct(varargin{:});
 opt= set_defaults(opt, ...
@@ -102,7 +102,8 @@ elseif strcmp(opt.cca_mode, 'standard')
 end
 % Return found filters from dimension reduced space 
 Vfw = Uf*Vfdr;
-Afw = Cff*Vfw;
+Afw = (Cff^0.5)*Vfw;
+% Afw = Cff*Vfw;
 
 Vf = unwhiten_global_filters(Vfw,Wm);
 
@@ -194,6 +195,7 @@ Cxx = mean(Epochs_cov,3);
 
 % Whitening matrix
 Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
+Cxx_r = (Cxx_r + Cxx_r') / 2; 
 iWm = sqrtm(Cxx_r);    
 Wm = eye(n_channels) / iWm;
 
@@ -277,6 +279,8 @@ scale_x = trace(Cxx) / size(Cxx,1);
 scale_y = trace(Cyy) / size(Cyy,1);
 Sxx_r = (1-gamma)*Cxx + gamma*scale_x*eye(size(Cxx));
 Syy_r = (1-gamma)*Cyy + gamma*scale_y*eye(size(Cyy));
+Sxx_r = (Sxx_r + Sxx_r') / 2; 
+Syy_r = (Syy_r + Syy_r') / 2; 
 
 Rx = chol(Sxx_r,'upper');
 Ry = chol(Syy_r,'upper');
@@ -307,21 +311,10 @@ function [W, A, s] = project_to_manifold(V, Wm, Cxx)
 
 % Project filters to manifold
 WW = upper2cov(V);
-[Uw,S] = eig(WW,Wm*Cxx*Wm');s=diag(S);[s,idxs]=sort(s,'descend');Uw=Uw(:,idxs);
+[Uw,S] = eig(WW);s=diag(S);[s,idxs]=sort(s,'descend');Uw=Uw(:,idxs);
 
-% [Uw,S] = eig(WW,Wm*Cxx*Wm');s=diag(S);[s,idxs]=sort(s,'descend');Uw=Uw(:,idxs);
-% stem(s)
-% xlabel('number of component')
-% ylabel('\lambda value')
-% title('Spectrum of eigenvalues of the matrix W')
-% Optionally svd() could be used instead of eig() (Result is the same. Order differs)
-% [Uw,~,~] = svd(WW_r);
-
-% Normalization and pattern recovery
 for local_src_idx=1:size(Uw,2)
-    % Return filters from the whightened space
     wi = Wm * Uw(:,local_src_idx);
-    % Normalize
     Wprn = wi / sqrt(wi' * Cxx * wi);
     W(:,local_src_idx) = Wprn;
     A(:,local_src_idx) = Cxx * Wprn / (Wprn' * Cxx * Wprn);
