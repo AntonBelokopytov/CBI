@@ -115,9 +115,6 @@ end
 M(1,:) = x1;
 M(2,:) = x2;
 
-% M(3,:) = y1;
-% M(4,:) = y2;
-
 % Create random envelopes for every source
 for k = 1:Nsrc
     S(k,:) = (S(k,:) - mean(S(k,:))) / std(S(k,:));
@@ -165,13 +162,6 @@ for ep_i=1:size(X_epochs,3)
     X_covs(:,:,ep_i) = cov(X_epochs(:,:,ep_i));
 end
 
-%
-% X_covsT = Tangent_space(X_covs);
-% 
-% %%
-% umap
-
-%
 Dists = zeros(size(X_covs,3));
 
 for ep_i=1:size(X_covs,3)-1
@@ -193,8 +183,6 @@ R = u.fit_transform(Dists);
 %%
 figure;
 scatter(R(:, 1), R(:, 2), 15, 'b', 'filled');
-hold on;
-% scatter(R(:, 3), R(:, 4), 15, 'r', 'filled');
 axis equal;
 grid on;
 hold off;

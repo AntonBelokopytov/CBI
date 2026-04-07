@@ -1,4 +1,4 @@
-function [A_out, W_out, z, Epochs_cov] = env_laplace_dec2(X, Fs, Wsize, Ssize, N_neigb, lambda, n_plot_comps)    
+function [A_out, W_out, z, Epochs_cov] = env_laplace_dec(X, Fs, Wsize, Ssize, N_neigb, lambda, n_plot_comps)    
     if nargin < 5 || isempty(N_neigb), N_neigb = []; end
     if nargin < 6 || isempty(lambda), lambda = 1e-6; end
     if nargin < 7 || isempty(n_plot_comps), n_plot_comps = 3; end

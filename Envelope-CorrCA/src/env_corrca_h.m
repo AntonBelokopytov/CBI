@@ -1,4 +1,4 @@
-function [z_trials, Z_epochs, X_epochs] = env_corrca_h(X, Fs, Wsize, Ssize, lambda)
+function [Z_epochs, X_epochs] = env_corrca_h(X, Fs, Wsize, Ssize, lambda)
     if nargin < 5
         lambda = 1e-5; 
     end

@@ -40,7 +40,7 @@ G = load('D:\OS(CURRENT)\data\simulation_support_data\eeg\MNE_EEG_FWD_TRPL.mat')
 phi1 = 0;
 phi2 = pi;
 f = 0.5;
-Nc = 2; 
+Nc = 1.5; 
 noise_level = 0.1; 
 Ts = 100;
 Fs = 250;
@@ -72,7 +72,7 @@ grid on;
 hold off;
 
 %%
-Nsrc = 50;
+Nsrc = 10;
 flanker = 1;
 Ndistr = 2;
 
@@ -113,7 +113,9 @@ for k = Ndistr+1:Nsrc
     M(k,:) = m - min(m) + eps;     
 end
 M(1,:) = x1;
-M(2,:) = y1;
+M(2,:) = x2;
+M(3,:) = y1;
+M(4,:) = y2;
 
 % Create random envelopes for every source
 for k = 1:Nsrc
@@ -134,41 +136,6 @@ X_n = filtfilt(bn,an,randn(Nsens,N+2*flanker)')';
 X_n = X_n(:,flanker+1:end-flanker);
 X_n = X_n - mean(X_n,2);
 X_n = X_n ./ std(X_n,0,2);
-
-SNR = 20;
-
-X1 = SNR * X_s + X_bg + X_n;
-
-%%
-S = filtfilt(b,a,randn(Nsrc,N+2*flanker)')';
-S = S(:,flanker+1:end-flanker);
-
-M(1,:) = x2;
-M(2,:) = y2;
-
-% Create random envelopes for every source
-for k = 1:Nsrc
-    S(k,:) = (S(k,:) - mean(S(k,:))) / std(S(k,:));
-    env = abs(hilbert(S(k,:)')');
-    S(k,:) = S(k,:) ./ (env + eps);
-        
-    S(k,:) = S(k,:) .* M(k,:);
-    S(k,:) = S(k,:) - mean(S(k,:));
-end
-
-% generate sensor data
-X_s = GA(:,1:Ndistr) * S(1:Ndistr,:);
-X_bg = GA(:,Ndistr+1:end) * S(Ndistr+1:end,:);
-
-% generate white noise
-X_n = filtfilt(bn,an,randn(Nsens,N+2*flanker)')';
-X_n = X_n(:,flanker+1:end-flanker);
-X_n = X_n - mean(X_n,2);
-X_n = X_n ./ std(X_n,0,2);
-
-SNR = 20;
-
-X2 = SNR * X_s + X_bg + X_n;
 
 %%
 figure
@@ -184,30 +151,24 @@ env = abs(hilbert(S(4,:)));
 plot(env)
 
 %%
+SNR = 20;
+
+X = SNR * X_s + X_bg + X_n;
+
 Ws = 2;
-Ss = 0.1;
-X_epochs = epoch_data(X1',Fs,Ws,Ss);
+Ss = 0.2;
+X_epochs = epoch_data(X',Fs,Ws,Ss);
 
-X_covs1 = [];
+X_covs = [];
 for ep_i=1:size(X_epochs,3)
-    X_covs1(:,:,ep_i) = cov(X_epochs(:,:,ep_i));
+    X_covs(:,:,ep_i) = cov(X_epochs(:,:,ep_i));
 end
 
-X_epochs = epoch_data(X2',Fs,Ws,Ss);
-
-X_covs2 = [];
-for ep_i=1:size(X_epochs,3)
-    X_covs2(:,:,ep_i) = cov(X_epochs(:,:,ep_i));
-end
-
-X_covs = cat(3,X_covs1,X_covs2);
-
-%%
 Dists = zeros(size(X_covs,3));
 
 for ep_i=1:size(X_covs,3)-1
     ep_i
-    parfor ep_j=ep_i+1:size(X_covs,3)
+    for ep_j=ep_i+1:size(X_covs,3)
         C1 = X_covs(:,:,ep_i);
         C2 = X_covs(:,:,ep_j);
         d = distance_riemann(C1,C2);
@@ -216,17 +177,14 @@ for ep_i=1:size(X_covs,3)-1
 end
 Dists = Dists + Dists';
 
-n = size(X_covs1,3);
-
 %%
 clear u
-u = UMAP("n_neighbors",15,"n_components",2,'metric','precomputed');
+u = UMAP("n_neighbors",50,"n_components",2,'metric','precomputed');
 R = u.fit_transform(Dists);
 
 %%
 figure;
-scatter(R(1:n, 1), R(1:n, 2), 15, 'red', 'filled');hold on;
-scatter(R(n+1:end, 1), R(n+1:end, 2), 15, 'b', 'filled');
+scatter(R(:, 1), R(:, 2), 15, 'b', 'filled');
 axis equal;
 grid on;
 hold off;
@@ -244,7 +202,7 @@ hold off;
 % end
 % W = max(W_knn, W_knn');
 
-k = 15; 
+k = 490; 
 W_full = 1 ./ (Dists + eps); 
 W_full(logical(eye(size(W_full)))) = 0;
 
@@ -274,9 +232,19 @@ V = V(:, sort_idx);
 Y = Dinv * V;
 Y = (Y - mean(Y,1)) ./ std(Y,[],1);
 
+figure
+plot(Y(:, 2)); hold on
+plot(Y(:, 3));
+
+figure
+plot(Y(:, 4)); hold on
+plot(Y(:, 5));
+
+
 figure;
-scatter(Y(1:n, 2), Y(1:n, 3), 15, 'r', 'filled'); hold on
-scatter(Y(n+1:end, 2), Y(n+1:end, 3), 15, 'b', 'filled');
+scatter(Y(:, 2), Y(:, 3), 15, 'b', 'filled');
+hold on;
+scatter(Y(:, 4), Y(:, 5), 15, 'r', 'filled');
 axis equal;
 grid on;
 hold off;

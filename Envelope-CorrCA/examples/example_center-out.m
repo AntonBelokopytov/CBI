@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip\';
+ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip\';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -36,8 +36,8 @@ idxs = [  0,   1,   2,   3,   6,   8,  12,  13,  15,  16,  17,  19,  22,...
 all_idxd = 1:numel(Epochs_inf.trial);
 % idxs = setdiff(all_idxd, idxs); 
 
-Fmin = 9;
-Fmax = 14;
+Fmin = 8;
+Fmax = 12;
 band = [Fmin Fmax];
 
 Wsize = 1/Fmin;
@@ -59,8 +59,22 @@ end
 Epochs = Epochs(:,:,idxs);
 Epochs_alg = Epochs_alg(:,:,idxs);
 
-% [z_trials, X_epochs, X_covs] = env_grad_dec(Epochs_alg, Fs, Wsize, Ssize);
-[z_trials, W, A, X_epochs, X_covs] = env_grad_dec(Epochs_alg, Fs, Wsize, Ssize);
+[W, A, z_trials, X_epochs] = env_corrca(Epochs_alg, Fs, Wsize, Ssize);
+% [z_trials, W, A, X_epochs, X_covs] = env_grad_dec(Epochs_alg, Fs, Wsize, Ssize);
+
+%%
+% z_comp = squeeze(z_trials(:,2,:));
+% z_comp = z_comp(:);
+z_comp = repmat(mean(z_trials(:,1,:),3), 1, 72);
+
+[W,A] = spoc(X_epochs(:,:,:),z_comp(:)');
+
+%%
+imagesc(squeeze(z_trials(:,2,:))')
+colorbar
+
+%%
+plot(mean(z_trials(:,1,:),3))
 
 %%
 plot(mean(z_trials(:,1,:),3))
@@ -69,12 +83,12 @@ plot(mean(z_trials(:,1,:),3))
 plot(z_trials(:,1,33))
 
 %%
-gl_c = 2;
-comp_idx = 1;
-% wx = squeeze(W(gl_c,:,comp_idx))';
-% patt = squeeze(A(gl_c,:,comp_idx));
-wx = squeeze(W(:,comp_idx));
-patt = squeeze(A(:,comp_idx));
+gl_c = 1;
+comp_idx = 38;
+wx = squeeze(W(gl_c,:,comp_idx))';
+patt = squeeze(A(gl_c,:,comp_idx));
+% wx = squeeze(W(:,comp_idx));
+% patt = squeeze(A(:,comp_idx));
 
 patt = patt * sign(patt(abs(patt)==max(abs(patt))));
 
