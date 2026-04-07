@@ -1,4 +1,4 @@
-function [W, A, z_trials, X_epochs] = env_corrca(X, Fs, Wsize, Ssize, lambda)
+function [W, A, z_trials, X_epochs, raw_var] = env_corrca(X, Fs, Wsize, Ssize, lambda)
     if nargin < 5
         lambda = 1e-5; 
     end
@@ -43,10 +43,14 @@ function [W, A, z_trials, X_epochs] = env_corrca(X, Fs, Wsize, Ssize, lambda)
     
     n_comps = size(Vc, 2);
     z_trials = zeros(n_epochs, n_comps, n_trials);
+    raw_var = zeros(n_comps, n_trials);
     
     for j = 1:n_trials
         trial_data = X_covsVecW(:,:,j);
         z_tr = trial_data * Vc; 
+        
+        raw_var(:, j) = var(z_tr, 0, 1)'; 
+        
         z_trials(:,:,j) = (z_tr - mean(z_tr, 1)) ./ std(z_tr, [], 1);
     end
 

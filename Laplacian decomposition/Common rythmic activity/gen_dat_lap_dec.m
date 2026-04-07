@@ -16,7 +16,6 @@ function [Xtrials, Xraw, tm_snr, targetA] = gen_dat_lap_dec( ...
     XBgConst = reshape(XBgConst, [Nsens, nSamplesTrial, NTr]);
     noise_scale = norm(XBgConst(:,:,1), 'fro');
     
-    % ИСПРАВЛЕНИЕ: Выделяем память заранее (ускорит код в десятки раз)
     Xtrials = zeros(nSamplesTrial, Nsens, NTr);
     Xraw = zeros(Nsens, nSamplesTrial * NTr);
     targetA = zeros(NTr, Nsens, Ntg);
@@ -30,7 +29,8 @@ function [Xtrials, Xraw, tm_snr, targetA] = gen_dat_lap_dec( ...
             Ntg, flanker, TrLeSe, Fs, tm_snr);
         
         targetA(trial_idx,:,:) = GA(:,1:Ntg);
-        X = XS + XBgLcl + XBgConst(:,:,trial_idx) + 0.1 * XN * noise_scale / norm(XN,'fro');
+        % X = XS + XBgLcl + XBgConst(:,:,trial_idx) + 0.1 * XN * noise_scale / norm(XN,'fro');
+        X = XS + XBgLcl + 0.1 * XN * noise_scale / norm(XN,'fro');
         
         Xtrials(:,:,trial_idx) = X';
         

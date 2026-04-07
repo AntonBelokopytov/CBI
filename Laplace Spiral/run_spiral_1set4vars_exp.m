@@ -202,7 +202,7 @@ hold off;
 % end
 % W = max(W_knn, W_knn');
 
-k = 490; 
+k = 100; 
 W_full = 1 ./ (Dists + eps); 
 W_full(logical(eye(size(W_full)))) = 0;
 
@@ -220,7 +220,13 @@ W(logical(eye(size(W)))) = 0;
 D = diag(sum(W,2));
 L = D - W;
 
-Dinv = diag(1 ./ sqrt(diag(D))); 
+d_vec = diag(D); 
+
+Dsqrt = diag(sqrt(d_vec)); 
+
+d_inv_vec = 1 ./ sqrt(d_vec);
+d_inv_vec(isinf(d_inv_vec)) = 0; 
+Dinv = diag(d_inv_vec);
 
 [V, S_l] = eig(Dinv * L * Dinv);
 

@@ -37,51 +37,43 @@ cfg.layout.pos(:, 2) = cfg.layout.pos(:, 2) - 0.05;
 G = load('D:\OS(CURRENT)\data\simulation_support_data\eeg\MNE_EEG_FWD_TRPL.mat').MNE_EEG_FWD_TRPL;
 
 %%  
-NConstSrc = 40; 
+NConstSrc = 1; 
 Ntg = 1; 
 flanker = 1; 
 TrLeSe = 20; 
-Fs = 100; 
+Fs = 250; 
 NTr = 50; 
-NLclSrc = 2;
+NLclSrc = 20;
 
-SNR = 10;
+SNR = 5;
 
 [Xtrials, Xraw, tm, TgPa] = gen_dat_lap_dec( ...
     G, NConstSrc, Ntg, flanker, TrLeSe, ...
     Fs, NTr, NLclSrc, SNR);
 
-tmraw = repmat(tm,[1,NTr]);
-
 %%
-figure
-plot(tm')
+Wsize = 1;      
+Ssize = Wsize / 5;    
 
-%%
-% figure
-% topo.avg = TgPa(1,:);
-% ft_topoplotER(cfg, topo);
-
-%%
-Wsize = 0.125;      
-Ssize = Wsize / 2;    
-n_comps = 3;    
-
-[A, W, z, Epochs_cov] = env_laplace_dec(Xtrials, Fs, Wsize, Ssize, [], [], n_comps);
-
-%%
-Env = [];
-for tr_i=1:size(Epochs_cov,4)
-    w = squeeze(W(1,1,:,tr_i));
-    Env(:,tr_i) = abs(hilbert(Xtrials(:,:,tr_i)*w));
-end
-
-%%
-size(Env)
-figure
-imagesc(Env')
+tm_epochs = epoch_data(tm',Fs,Wsize, Ssize);
+tm_epochs = squeeze(mean(tm_epochs,1));
+tm_epochs = (tm_epochs - mean(tm_epochs)) / std(tm_epochs);
 
 figure
-plot(mean(Env,2))
+plot(tm_epochs)
+
+%%
+z = env_laplace_dec(Xtrials, Fs, Wsize, Ssize, 30);
+
+%%
+k = 1;
+
+c = corr(z(:,k), tm_epochs)
+
+figure
+plot(sign(c) * z(:,k)')
+hold on
+plot(tm_epochs)
+
 
 %%

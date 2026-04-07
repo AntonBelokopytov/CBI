@@ -1,6 +1,6 @@
 function [W, A, z_trials, X_epochs] = env_corrca_t(X, Fs, Wsize, Ssize, lambda)
     if nargin < 5
-        lambda = 1e-5; 
+        lambda = 1e-3; 
     end
     [~, n_channels, n_trials] = size(X);
     
@@ -54,14 +54,9 @@ function [W, A, z_trials, X_epochs] = env_corrca_t(X, Fs, Wsize, Ssize, lambda)
     W = zeros(n_comps, n_channels, n_channels);
     A = zeros(n_comps, n_channels, n_channels);
     
-    X_covs_flat3 = reshape(X_covs, n_channels, n_channels, n_epochs * n_trials);
-    
-    for comp_i = 1:n_comps
-        z_comp = z_trials(:, comp_i, :); 
-        z_comp = z_comp(:); 
-        % z_comp = repmat(mean(z_trials(:,comp_i,:),3), 1, n_trials); z_comp = z_comp(:);
-
-        [w, a] = my_spoc(X_covs_flat3, z_comp, lambda);
+    for comp_i = 1:10
+        z_trials_comp = squeeze(z_trials(:, comp_i, :));
+        [w, a] = my_spoc(X_covs, z_trials_comp, lambda);
         
         W(comp_i,:,:) = w;
         A(comp_i,:,:) = a;
