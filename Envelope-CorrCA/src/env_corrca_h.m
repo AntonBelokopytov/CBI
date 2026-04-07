@@ -1,4 +1,4 @@
-function [Z_epochs, X_epochs] = env_corrca_h(X, Fs, Wsize, Ssize, lambda)
+function [W, A, Z_epochs, X_epochs] = env_corrca_h(X, Fs, Wsize, Ssize, lambda)
     if nargin < 5
         lambda = 1e-5; 
     end
@@ -73,4 +73,24 @@ function [Z_epochs, X_epochs] = env_corrca_h(X, Fs, Wsize, Ssize, lambda)
         Z_epo_matrix = reshape(Z_epo_mean, n_comps, n_epochs)';
         Z_epochs(:,:,j) = (Z_epo_matrix - mean(Z_epo_matrix, 1)) ./ std(Z_epo_matrix, [], 1);
     end
+
+    [~, n_channels, n_epochs, n_trials] = size(X_epochs);
+    X_covs = zeros(n_channels, n_channels, n_epochs, n_trials);
+    for j=1:n_trials
+        for i=1:n_epochs
+            X_covs(:,:,i,j) = cov(X_epochs(:,:,i,j));
+        end
+    end
+
+    W = zeros(n_comps, n_channels, n_channels);
+    A = zeros(n_comps, n_channels, n_channels);
+    
+    for comp_i = 1:10
+        z_trials_comp = squeeze(Z_epochs(:, comp_i, :));
+        [w, a] = my_spoc(X_covs, z_trials_comp, lambda);
+        
+        W(comp_i,:,:) = w;
+        A(comp_i,:,:) = a;
+    end
+
 end

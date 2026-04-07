@@ -9,8 +9,8 @@ if ~exist('ft_defaults','file')
 end
 
 %% Target epochs
-sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_OFF_EEG_clean_epochs.fif';
-% sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_7_CenterOut_epochs.fif';
+% sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_OFF_EEG_clean_epochs.fif';
+sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_7_CenterOut_epochs.fif';
 cfg = [];
 cfg.dataset = sub_path; 
 Epochs_inf = ft_preprocessing(cfg); 
@@ -20,24 +20,24 @@ Fs = Epochs_inf.hdr.Fs;
 [~, n_ts_ep] = size(Epochs_inf.trial{1});
 
 %%
-idxs = [  0,   1,   2,   3,   6,   8,  12,  13,  15,  16,  17,  19,  22,...
-        24,  25,  28,  30,  32,  33,  35,  37,  39,  41,  42,  44,  45,...
-        48,  50,  51,  55,  57,  58,  59,  62,  63,  65,  69,  70,  73,...
-        74,  75,  78,  79,  82,  85,  88,  89,  92,  93,  94,  97, 100,...
-       101, 103, 105, 106, 109, 110, 111, 116, 117, 120, 121, 123, 125,...
-       127, 130, 131, 133, 135, 136, 137] + 1;
-% idxs = [  0,   1,   4,   5,   7,   8,   9,  10,  13,  15,  17,  18,  19,...
-%         24,  25,  27,  30,  32,  33,  35,  38,  39,  41,  43,  45,  46,...
-%         50,  53,  54,  56,  58,  59,  60,  64,  65,  68,  69,  71,  72,...
-%         75,  76,  77,  78,  82,  84,  86,  87,  89,  91,  93,  96,  97,...
-%         98, 102, 103, 105, 108, 109, 112, 115, 116, 119, 120, 125, 126,...
-%        129, 130, 131, 132, 135, 137, 139, 143, 145] + 1;
+% idxs = [  0,   1,   2,   3,   6,   8,  12,  13,  15,  16,  17,  19,  22,...
+%         24,  25,  28,  30,  32,  33,  35,  37,  39,  41,  42,  44,  45,...
+%         48,  50,  51,  55,  57,  58,  59,  62,  63,  65,  69,  70,  73,...
+%         74,  75,  78,  79,  82,  85,  88,  89,  92,  93,  94,  97, 100,...
+%        101, 103, 105, 106, 110, 111, 112, 117, 118, 121, 122, 124, 126,...
+%        128, 131, 132, 134, 136, 137, 138] + 1;
+idxs = [  2,   3,   6,   7,   8,  11,  12,  15,  18,  20,  21,  24,  26,...
+        28,  30,  32,  34,  37,  38,  40,  42,  43,  46,  48,  50,  52,...
+        54,  57,  58,  61,  63,  65,  67,  68,  70,  71,  73,  77,  78,...
+        79,  81,  83,  84,  86,  89,  90,  92,  95,  96,  98, 101, 103,...
+       105, 106, 108, 109, 113, 115, 118, 119, 121, 123, 126, 127, 128,...
+       131, 133, 134, 137, 139, 141, 142, 145, 146] + 1;
 
 all_idxd = 1:numel(Epochs_inf.trial);
 % idxs = setdiff(all_idxd, idxs); 
 
-Fmin = 8;
-Fmax = 12;
+Fmin = 17;
+Fmax = 23;
 band = [Fmin Fmax];
 
 Wsize = 1/Fmin;
@@ -65,26 +65,23 @@ Epochs_alg = Epochs_alg(:,:,idxs);
 %%
 % z_comp = squeeze(z_trials(:,2,:));
 % z_comp = z_comp(:);
-z_comp = repmat(mean(z_trials(:,1,:),3), 1, 72);
+% z_comp = repmat(mean(z_trials(:,1,:),3), 1, 72);
 
-[W,A] = spoc(X_epochs(:,:,:),z_comp(:)');
+% [W,A] = spoc(X_epochs(:,:,:),z_comp(:)');
 
 %%
-imagesc(squeeze(z_trials(:,2,:))')
+imagesc(squeeze(z_trials(:,1,:))')
 colorbar
 
 %%
 plot(mean(z_trials(:,1,:),3))
 
 %%
-plot(mean(z_trials(:,1,:),3))
-
-%%
-plot(z_trials(:,1,33))
+plot(mean(z_trials(:,2,:),3))
 
 %%
 gl_c = 1;
-comp_idx = 38;
+comp_idx = 35;
 wx = squeeze(W(gl_c,:,comp_idx))';
 patt = squeeze(A(gl_c,:,comp_idx));
 % wx = squeeze(W(:,comp_idx));
