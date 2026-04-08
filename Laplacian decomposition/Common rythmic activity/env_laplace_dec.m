@@ -4,18 +4,17 @@ function [z] = env_laplace_dec(X, Fs, Wsize, Ssize, N_neigb, lambda)
     % N_neigb - количество ближайших соседей (k) для графа
     % lambda  - регуляризация
     
-    if nargin < 6 || isempty(lambda), lambda = 1e-6; end
+    if nargin < 6 || isempty(lambda), lambda = 1e-10; end
     
     [~, n_ch, n_trials] = size(X);
     
     for tr_idx=1:n_trials
         X(:,:,tr_idx) = X(:,:,tr_idx) - mean(X(:,:,tr_idx),1);
     end
-    Xmean = mean(X,3);
     
     X_epochs = [];
     for tr_idx=1:n_trials
-        mX = X(:,:,tr_idx) - Xmean;
+        mX = X(:,:,tr_idx);
         mX = mX ./ sqrt(trace(cov(mX)));
         X_epochs(:,:,:,tr_idx) = epoch_data(mX,Fs,Wsize,Ssize);
     end
@@ -37,11 +36,11 @@ function [z] = env_laplace_dec(X, Fs, Wsize, Ssize, N_neigb, lambda)
     Dists = zeros(n_epochs, n_epochs, n_trials);
     parfor tr_idx=1:n_trials 
         Trial_Dists = calc_riemann_dists(Epochs_cov_reg(:,:,:,tr_idx));
-        std_val = std(Trial_Dists(triu(true(n_epochs), 1)));
-        Dists(:,:,tr_idx) = Trial_Dists ./ (std_val + eps);
+        % std_val = std(Trial_Dists(triu(true(n_epochs), 1)));
+        Dists(:,:,tr_idx) = Trial_Dists; % ./ (std_val + eps);
     end
     
-    SumDists = sum(Dists, 3);
+    SumDists = mean(Dists, 3);
     
     if nargin < 5 || isempty(N_neigb), N_neigb = n_epochs - 1; end
     k_eff = min(N_neigb, n_epochs - 1);

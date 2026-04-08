@@ -1,7 +1,7 @@
-function [Xtrials, Xraw, tm_snr, targetA] = gen_dat_lap_dec( ...
+function [Xtrials, Xraw, tm_snr, targetA] = gen_trials( ...
     G, NConstSrc, Ntg, flanker, TrLeSe, ...
     Fs, NTr, NLclSrc, SNR)
-
+    
     [Nsens, ~] = size(G); 
     [be, ae] = butter(2, 0.5 / (Fs / 2), 'low'); 
     tm = filtfilt(be,ae,randn(Ntg,TrLeSe*Fs + 2*flanker*Fs)')';
@@ -16,6 +16,22 @@ function [Xtrials, Xraw, tm_snr, targetA] = gen_dat_lap_dec( ...
     XBgConst = reshape(XBgConst, [Nsens, nSamplesTrial, NTr]);
     noise_scale = norm(XBgConst(:,:,1), 'fro');
     
+    Gx = G(:,1:3:end);  
+    Gy = G(:,2:3:end);  
+    Gz = G(:,3:3:end);  
+    Nsites = size(Gx, 2);
+    
+    GA_target = zeros(Nsens, Ntg);
+    src_indsA = randperm(Nsites, Ntg);
+    
+    for i = 1:Ntg
+        src_idx = src_indsA(i);
+        r = rand(3,1)*2 - 1;
+        r = r / norm(r);          
+        GA_target(:,i) = Gx(:,src_idx)*r(1) + Gy(:,src_idx)*r(2) + Gz(:,src_idx)*r(3);
+    end
+    % -----------------------------------------------------------------
+    
     Xtrials = zeros(nSamplesTrial, Nsens, NTr);
     Xraw = zeros(Nsens, nSamplesTrial * NTr);
     targetA = zeros(NTr, Nsens, Ntg);
@@ -26,11 +42,11 @@ function [Xtrials, Xraw, tm_snr, targetA] = gen_dat_lap_dec( ...
         
         [XS, XBgLcl, XN, GA] = generate_distributed_sources( ...
             G, NLclSrc, ...
-            Ntg, flanker, TrLeSe, Fs, tm_snr);
+            Ntg, flanker, TrLeSe, Fs, tm_snr, GA_target);
         
         targetA(trial_idx,:,:) = GA(:,1:Ntg);
-        % X = XS + XBgLcl + XBgConst(:,:,trial_idx) + 0.1 * XN * noise_scale / norm(XN,'fro');
-        X = XS + XBgLcl + 0.1 * XN * noise_scale / norm(XN,'fro');
+        
+        X = XS + XBgLcl + XBgConst(:,:,trial_idx) + 0.1 * XN * noise_scale / norm(XN,'fro');
         
         Xtrials(:,:,trial_idx) = X';
         
@@ -42,7 +58,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [X_s, X_bg, X_n, GA] = generate_distributed_sources(G, Nsrc, ...
-    Ndistr, flanker, Ts, Fs, target_modulator)
+    Ndistr, flanker, Ts, Fs, target_modulator, GA_in)
     
     N = Ts*Fs;
     flanker = flanker*Fs;
@@ -56,14 +72,30 @@ function [X_s, X_bg, X_n, GA] = generate_distributed_sources(G, Nsrc, ...
     Gz = G(:,3:3:end);  
     [Nsens, Nsites] = size(Gx);
     GA = zeros(Nsens, Nsrc);
-    src_indsA = randperm(Nsites, Nsrc);
     
-    for i = 1:Nsrc
-        src_idx = src_indsA(i);
-        r = rand(3,1)*2 - 1;
-        r = r / norm(r);          
-        GA(:,i) = Gx(:,src_idx)*r(1) + Gy(:,src_idx)*r(2) + Gz(:,src_idx)*r(3);
+    if nargin < 8 || isempty(GA_in)
+        src_inds_tgt = randperm(Nsites, Ndistr);
+        for i = 1:Ndistr
+            src_idx = src_inds_tgt(i);
+            r = rand(3,1)*2 - 1;
+            r = r / norm(r);          
+            GA(:,i) = Gx(:,src_idx)*r(1) + Gy(:,src_idx)*r(2) + Gz(:,src_idx)*r(3);
+        end
+    else
+        GA(:, 1:Ndistr) = GA_in; 
     end
+    
+    N_local_bg = Nsrc - Ndistr;
+    if N_local_bg > 0
+        src_inds_bg = randperm(Nsites, N_local_bg);
+        for i = 1:N_local_bg
+            src_idx = src_inds_bg(i);
+            r = rand(3,1)*2 - 1;
+            r = r / norm(r);          
+            GA(:, Ndistr + i) = Gx(:,src_idx)*r(1) + Gy(:,src_idx)*r(2) + Gz(:,src_idx)*r(3);
+        end
+    end
+    % -----------------------------------------------------------------
     
     S = filtfilt(b,a,randn(Nsrc,N+2*flanker)')';
     S = S(:,flanker+1:end-flanker);

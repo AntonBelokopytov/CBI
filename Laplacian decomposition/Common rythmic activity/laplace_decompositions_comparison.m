@@ -37,19 +37,27 @@ cfg.layout.pos(:, 2) = cfg.layout.pos(:, 2) - 0.05;
 G = load('D:\OS(CURRENT)\data\simulation_support_data\eeg\MNE_EEG_FWD_TRPL.mat').MNE_EEG_FWD_TRPL;
 
 %%  
-NConstSrc = 1; 
 Ntg = 1; 
 flanker = 1; 
-TrLeSe = 20; 
+TrLeSe = 10; 
 Fs = 250; 
-NTr = 50; 
-NLclSrc = 20;
+NTr = 100; 
+NConstSrc = 90;
+NLclSrc = 5;
 
 SNR = 5;
 
-[Xtrials, Xraw, tm, TgPa] = gen_dat_lap_dec( ...
+% [Xtrials, Xraw, tm, TgPa] = gen_multisub( ...
+%     G, Ntg, flanker, TrLeSe, ...
+%     Fs, NTr, NLclSrc, SNR);
+
+[Xtrials, Xraw, tm, TgPa] = gen_trials( ...
     G, NConstSrc, Ntg, flanker, TrLeSe, ...
     Fs, NTr, NLclSrc, SNR);
+
+%%
+topo.avg    = TgPa(1,:);
+ft_topoplotER(cfg, topo);
 
 %%
 Wsize = 1;      
@@ -63,7 +71,7 @@ figure
 plot(tm_epochs)
 
 %%
-z = env_laplace_dec(Xtrials, Fs, Wsize, Ssize, 30);
+z = env_laplace_dec(Xtrials, Fs, Wsize, Ssize);
 
 %%
 k = 1;
@@ -74,6 +82,5 @@ figure
 plot(sign(c) * z(:,k)')
 hold on
 plot(tm_epochs)
-
 
 %%
