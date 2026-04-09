@@ -30,7 +30,6 @@ function [Xtrials, Xraw, tm_snr, targetA] = gen_trials( ...
         r = r / norm(r);          
         GA_target(:,i) = Gx(:,src_idx)*r(1) + Gy(:,src_idx)*r(2) + Gz(:,src_idx)*r(3);
     end
-    % -----------------------------------------------------------------
     
     Xtrials = zeros(nSamplesTrial, Nsens, NTr);
     Xraw = zeros(Nsens, nSamplesTrial * NTr);
@@ -74,25 +73,25 @@ function [X_s, X_bg, X_n, GA] = generate_distributed_sources(G, Nsrc, ...
     GA = zeros(Nsens, Nsrc);
     
     if nargin < 8 || isempty(GA_in)
-        src_inds_tgt = randperm(Nsites, Ndistr);
-        for i = 1:Ndistr
-            src_idx = src_inds_tgt(i);
+        src_indsA = randperm(Nsites, Nsrc);
+        for i = 1:Nsrc
+            src_idx = src_indsA(i);
             r = rand(3,1)*2 - 1;
             r = r / norm(r);          
             GA(:,i) = Gx(:,src_idx)*r(1) + Gy(:,src_idx)*r(2) + Gz(:,src_idx)*r(3);
         end
     else
         GA(:, 1:Ndistr) = GA_in; 
-    end
-    
-    N_local_bg = Nsrc - Ndistr;
-    if N_local_bg > 0
-        src_inds_bg = randperm(Nsites, N_local_bg);
-        for i = 1:N_local_bg
-            src_idx = src_inds_bg(i);
-            r = rand(3,1)*2 - 1;
-            r = r / norm(r);          
-            GA(:, Ndistr + i) = Gx(:,src_idx)*r(1) + Gy(:,src_idx)*r(2) + Gz(:,src_idx)*r(3);
+        
+        N_local_bg = Nsrc - Ndistr;
+        if N_local_bg > 0
+            src_inds_bg = randperm(Nsites, N_local_bg);
+            for i = 1:N_local_bg
+                src_idx = src_inds_bg(i);
+                r = rand(3,1)*2 - 1;
+                r = r / norm(r);          
+                GA(:, Ndistr + i) = Gx(:,src_idx)*r(1) + Gy(:,src_idx)*r(2) + Gz(:,src_idx)*r(3);
+            end
         end
     end
     % -----------------------------------------------------------------
@@ -111,7 +110,7 @@ function [X_s, X_bg, X_n, GA] = generate_distributed_sources(G, Nsrc, ...
         env_n = filtfilt(ben,aen,randn(1,N+2*flanker));
         env_n = env_n(flanker+1:end-flanker);
         env_n = env_n ./ norm(env_n);
-        m = m + 0 * norm(m) * env_n;
+        m = m + 0 * norm(m) * env_n; 
         M(k,:) = m - min(m) + eps;     
     end
     
