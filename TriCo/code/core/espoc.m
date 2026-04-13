@@ -71,10 +71,9 @@ function [W, A, Vf, Vz, corrs, Feat, Epochs_cov, eigenvalues] = espoc(X_epochs, 
 %   eigenvalues - Eigenvalues of reconstructed covariance matrices
 %                 (used to interpret global vs local source modes)
 %
-%
 % Conceptual interpretation:
 %
-% - Vf defines "global source modes" in covariance feature space.
+% - Vf defines "global source modes" in covariance feat ure space.
 % - Eigen-decomposition of reconstructed matrices yields
 %   "local spatial modes" (rank-1 components).
 % - W and A provide interpretable spatial filters and patterns
@@ -82,7 +81,7 @@ function [W, A, Vf, Vz, corrs, Feat, Epochs_cov, eigenvalues] = espoc(X_epochs, 
 
 opt= propertylist2struct(varargin{:});
 opt= set_defaults(opt, ...
-                  'X_min_var_explained', 1, ...
+                  'X_min_var_explained', 0.99, ...
                   'whitening_reg', 10e-8, ...
                   'cca_mode', 'regularized', ...
                   'cca_reg', 10e-8);
@@ -102,7 +101,7 @@ elseif strcmp(opt.cca_mode, 'standard')
 end
 % Return found filters from dimension reduced space 
 Vfw = Uf*Vfdr;
-Afw = (Cff^0.5)*Vfw;
+Afw = Vfw;
 % Afw = Cff*Vfw;
 
 Vf = unwhiten_global_filters(Vfw,Wm);
@@ -115,7 +114,7 @@ Vf = unwhiten_global_filters(Vfw,Wm);
 
 % Project and normalize EEG/MEG filters
 for global_src_idx=1:size(Afw,2)
-    [w, a, s] = project_to_manifold(Afw(:,global_src_idx), Wm, Cxx);
+    [w, a, s] = project_to_manifold(Afw(:,global_src_idx), Wm, Cxx, 0.99);
     
     % Project target variable to its CCA component 
     Zpr = Vz(:,global_src_idx)'*Z;
@@ -307,19 +306,41 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [W, A, s] = project_to_manifold(V, Wm, Cxx)
-
-% Project filters to manifold
-WW = upper2cov(V);
-[Uw,S] = eig(WW);s=diag(S);[s,idxs]=sort(s,'descend');Uw=Uw(:,idxs);
-
-for local_src_idx=1:size(Uw,2)
-    wi = Wm * Uw(:,local_src_idx);
-    Wprn = wi / sqrt(wi' * Cxx * wi);
-    W(:,local_src_idx) = Wprn;
-    A(:,local_src_idx) = Cxx * Wprn / (Wprn' * Cxx * Wprn);
-end
-
+function [W, A, s] = project_to_manifold(V, Wm, Cxx, min_var_explained)
+    % 1. Eigendecomposition of unwhitened data covariance
+    [Ux,Sx] = eig(Cxx); 
+    [sx,idxs] = sort(diag(Sx),'descend'); 
+    Ux = Ux(:,idxs);
+    
+    ve = sx; 
+    var_explained = cumsum(ve) / sum(ve);
+    var_explained(end) = 1;
+    tol = 1e-12;
+    n_components = find(var_explained >= min_var_explained - tol, 1);
+    if isempty(n_components)
+        n_components = length(sx);
+    end
+    Ux = Ux(:, 1:n_components);
+    
+    WW = upper2cov(V);
+    W_proj = Ux' * WW * Ux;
+    W_proj = (W_proj + W_proj') / 2;
+    
+    [Uw, S] = eig(W_proj);
+    [s, idxs] = sort(diag(S),'descend');
+    Uw = Uw(:,idxs);
+    
+    n_channels = size(Cxx, 1);
+    n_local_src = size(Uw, 2);
+    W = zeros(n_channels, n_local_src);
+    A = zeros(n_channels, n_local_src);
+    
+    for local_src_idx = 1:n_local_src
+        wi = Wm' * Ux * Uw(:, local_src_idx); 
+        Wprn = wi / sqrt(wi' * Cxx * wi);
+        W(:, local_src_idx) = Wprn;
+        A(:, local_src_idx) = Cxx * Wprn; 
+    end
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

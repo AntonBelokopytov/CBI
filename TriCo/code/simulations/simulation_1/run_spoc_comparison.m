@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\2Git\fieldtrip';
+ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip';
 if ~exist('ft_defaults','file')
     addpath(ft_path);
 end
@@ -30,7 +30,6 @@ methods = {@espoc, @spoc};
 nMethods = length(methods);
 labels = {'eSPoC', 'SPoC'};
 
-% НОВОЕ: Разделяем переменные для Train и Test корреляции
 filcorr_train = zeros(nMC, nSNR, nMethods); 
 filcorr_test  = zeros(nMC, nSNR, nMethods);
 patcorr       = zeros(nMC, nSNR, nMethods);
@@ -39,7 +38,7 @@ parfor mc_idx = 1:nMC
     fprintf('Monte-Carlo iteration: %d / %d\n', mc_idx, nMC);
     
     [X_s, X_bg, X_n, z, GA, S] = generate_distributed_sources(G, Nsrc, Ndistr, flanker, Ts, Fs);
-    Ainit = GA(:,1);
+    Ainit = GA(:,1); 
     
     % Временные матрицы для parfor
     filcorr_train_local = zeros(nSNR, nMethods); 
@@ -84,25 +83,21 @@ parfor mc_idx = 1:nMC
         for m_idx = 1:nMethods
             alg = methods{m_idx};
             
-            % Обучение
             [W, A] = alg(X_epo_train, z_epo_train);
             w = W(:,1);
             
-            % Оценка на тренировочной выборке
             env_train = zeros(nTrain, 1);
             for ep_idx = 1:nTrain
                 env_train(ep_idx) = w' * Covs_train(:,:,ep_idx) * w;
             end
             filcorr_train_local(snr_idx, m_idx) = corr(env_train(:), z_epo_train(:));
             
-            % Оценка на тестовой выборке
             env_test = zeros(nTest, 1);
             for ep_idx = 1:nTest
                 env_test(ep_idx) = w' * Covs_test(:,:,ep_idx) * w;
             end
             filcorr_test_local(snr_idx, m_idx) = corr(env_test(:), z_epo_test(:));
             
-            % Оценка паттерна
             patcorr_local(snr_idx, m_idx) = abs(corr(A(:,1), Ainit));
         end
     end

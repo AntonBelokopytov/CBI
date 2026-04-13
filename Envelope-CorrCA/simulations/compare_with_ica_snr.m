@@ -71,7 +71,7 @@ for snr_i = 1:Nsnr
         
         tmraw = repmat(tm,[1,NTr]);
         
-        % Laplace
+        % 
         [W, A] = env_corrca(Xtrials, Fs, Wsize, Ssize);
         
         W = squeeze(W(1,:,:)); W = [W(:,1), W(:,end)];
@@ -179,7 +179,7 @@ for p = 1:2
     xticks(ticks_to_show);
     xticklabels(x_labels);
     xlim([min(snr_powers) max(snr_powers)]);
-    if p == 1, legend([h1, h2], {'GeoSPoC', 'ICA'}, 'Location', 'southeast'); end
+    if p == 1, legend([h1, h2], {'Envelope-CorrCA', 'ICA'}, 'Location', 'southeast'); end
 end
 
 %%
