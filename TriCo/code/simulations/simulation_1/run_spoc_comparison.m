@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
 if ~exist('ft_defaults','file')
     addpath(ft_path);
 end

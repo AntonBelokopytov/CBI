@@ -1,4 +1,4 @@
-function [W, A, Vf, Vz, corrs, Feat, Epochs_cov, eigenvalues] = espoc(X_epochs, Z, varargin)
+function [W, A, Vf, Vz, corrs, Feat, Epochs_cov, eigenvalues] = espoc_def(X_epochs, Z, varargin)
 % Extended Source Power Co-modulation (eSPoC)
 %
 % This function implements the eSPoC framework for explaining variability
@@ -102,22 +102,12 @@ end
 % Return found filters from dimension reduced space 
 Vfw = Uf*Vfdr;
 Afw = Vfw;
-% Cff_r = Cff+opt.whitening_reg*eye(size(Cff))*trace(Cff)/size(Cff,1);
-% Cff_r = (Cff_r + Cff_r') / 2; 
-% Afw = (Cff_r ^ 0.5) * Vfw;
-% Afw = Cff * Vfw;
 
 Vf = unwhiten_global_filters(Vfw,Wm);
 
-% en = Vfw' * Feat;
-% en = (en - mean(en)) / std(en);
-% plot(en)
-% hold on
-% plot(Z)
-
 % Project and normalize EEG/MEG filters
 for global_src_idx=1:size(Afw,2)
-    [w, a, s] = project_to_manifold(Afw(:,global_src_idx), Wm, Cxx, opt, 1);
+    [w, a, s] = project_to_manifold(Afw(:,global_src_idx), Wm, Cxx, 1);
     
     % Project target variable to its CCA component 
     Zpr = Vz(:,global_src_idx)'*Z;
@@ -196,10 +186,8 @@ end
 Cxx = mean(Epochs_cov,3);
 
 % Whitening matrix
-Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
-Cxx_r = (Cxx_r + Cxx_r') / 2; 
-iWm = sqrtm(Cxx_r);    
-% Wm = eye(n_channels) / iWm;
+% Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
+% Cxx_r = (Cxx_r + Cxx_r') / 2; 
 Wm = eye(n_channels);
 
 % Whightened covariance series (upper triangular parts)
@@ -310,27 +298,9 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)
-    % Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
-    % Cxx_r = (Cxx_r + Cxx_r') / 2; 
-
-    [Ux,Sx] = eig(Cxx); 
-    [sx,idxs] = sort(diag(Sx),'descend'); 
-    Ux = Ux(:,idxs);
-    
-    ve = sx; 
-    var_explained = cumsum(ve) / sum(ve);
-    var_explained(end) = 1;
-    tol = 1e-12;
-    n_components = find(var_explained >= min_var_explained - tol, 1);
-    if isempty(n_components)
-        n_components = length(sx);
-    end
-    Ux = Ux(:, 1:n_components);
-    
+function [W, A, s] = project_to_manifold(V, Wm, Cxx)
     WW = upper2cov(V);
-    W_proj = Ux' * WW * Ux;
-    W_proj = (W_proj + W_proj') / 2;
+    W_proj = (WW + WW') / 2;
     
     [Uw, S] = eig(W_proj);
     [s, idxs] = sort(diag(S),'descend');
@@ -342,7 +312,7 @@ function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)
     A = zeros(n_channels, n_local_src);
     
     for local_src_idx = 1:n_local_src
-        wi = Wm' * Ux * Uw(:, local_src_idx); 
+        wi = Wm' * Uw(:, local_src_idx); 
         Wprn = wi / sqrt(wi' * Cxx * wi);
         W(:, local_src_idx) = Wprn;
         A(:, local_src_idx) = Cxx * Wprn; 
