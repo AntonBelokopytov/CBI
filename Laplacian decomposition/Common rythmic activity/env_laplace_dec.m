@@ -1,10 +1,11 @@
-function [z] = env_laplace_dec(X, Fs, Wsize, Ssize, N_neigb, lambda)    
+function [z] = env_laplace_dec(X, Fs, Wsize, Ssize, lambda, N_neigb)    
     % Входные параметры:
     % X       - данные [каналы x время x трайлы]
-    % N_neigb - количество ближайших соседей (k) для графа
     % lambda  - регуляризация
-    
-    if nargin < 6 || isempty(lambda), lambda = 1e-10; end
+    % N_neigb - количество ближайших соседей (k) для графа
+
+    if nargin < 5 || isempty(lambda), lambda = 1e-10; end
+    if nargin < 6 || isempty(N_neigb), N_neigb = 20; end
     
     [~, n_ch, n_trials] = size(X);
     
@@ -36,13 +37,12 @@ function [z] = env_laplace_dec(X, Fs, Wsize, Ssize, N_neigb, lambda)
     Dists = zeros(n_epochs, n_epochs, n_trials);
     parfor tr_idx=1:n_trials 
         Trial_Dists = calc_riemann_dists(Epochs_cov_reg(:,:,:,tr_idx));
-        % std_val = std(Trial_Dists(triu(true(n_epochs), 1)));
-        Dists(:,:,tr_idx) = Trial_Dists; % ./ (std_val + eps);
+        std_val = std(Trial_Dists(triu(true(n_epochs), 1)));
+        Dists(:,:,tr_idx) = Trial_Dists ./ (std_val + eps);
     end
     
     SumDists = mean(Dists, 3);
     
-    if nargin < 5 || isempty(N_neigb), N_neigb = n_epochs - 1; end
     k_eff = min(N_neigb, n_epochs - 1);
     knn_mask = false(n_epochs);
     
@@ -54,9 +54,24 @@ function [z] = env_laplace_dec(X, Fs, Wsize, Ssize, N_neigb, lambda)
     
     knn_mask = knn_mask | knn_mask';
     
+    % W = zeros(n_epochs);
+    % W(knn_mask) = 1 ./ (SumDists(knn_mask).^2 + eps); 
+    % W = W - diag(diag(W)); 
+    distances_in_graph = SumDists(knn_mask);
+    sigma = median(distances_in_graph); 
+    
+    % Для предотвращения деления на 0, если вдруг граф вырожден
+    if sigma < eps
+        sigma = 1; 
+    end
+    
+    % 2. Применяем экспоненциальное ядро
     W = zeros(n_epochs);
-    W(knn_mask) = 1 ./ (SumDists(knn_mask).^2 + eps); 
-    W = W - diag(diag(W)); 
+    W(knn_mask) = exp( -(SumDists(knn_mask).^2) / (2 * sigma^2) );
+    
+    % 3. Обнуляем диагональ (расстояние от узла до самого себя равно 0, 
+    % экспонента даст 1, но для Лапласиана самопетли не нужны)
+    W = W - diag(diag(W));    
     
     deg = sum(W, 2);
     D_inv_sqrt = diag(1 ./ sqrt(deg + eps)); 
@@ -101,5 +116,5 @@ function Dists = calc_riemann_dists(Covs)
 end
 
 function a = distance_riemann(A,B)
-    a = sqrt(sum(log(eig(A,B))).^2);
+    a = sqrt(sum(log(eig(A,B)).^2));
 end

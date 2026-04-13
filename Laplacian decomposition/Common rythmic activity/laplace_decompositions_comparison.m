@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -41,19 +41,19 @@ Ntg = 1;
 flanker = 1; 
 TrLeSe = 10; 
 Fs = 250; 
-NTr = 100; 
-NConstSrc = 90;
-NLclSrc = 5;
+NTr = 200; 
+NConstSrc = 40;
+NLclSrc = 40;
 
-SNR = 5;
+SNR = 1;
 
-% [Xtrials, Xraw, tm, TgPa] = gen_multisub( ...
-%     G, Ntg, flanker, TrLeSe, ...
-%     Fs, NTr, NLclSrc, SNR);
-
-[Xtrials, Xraw, tm, TgPa] = gen_trials( ...
-    G, NConstSrc, Ntg, flanker, TrLeSe, ...
+[Xtrials, Xraw, tm, TgPa] = gen_multisub( ...
+    G, Ntg, flanker, TrLeSe, ...
     Fs, NTr, NLclSrc, SNR);
+
+% [Xtrials, Xraw, tm, TgPa] = gen_trials( ...
+%     G, NConstSrc, Ntg, flanker, TrLeSe, ...
+%     Fs, NTr, NLclSrc, SNR);
 
 %%
 topo.avg    = TgPa(1,:);
@@ -63,7 +63,7 @@ ft_topoplotER(cfg, topo);
 Wsize = 1;      
 Ssize = Wsize / 5;    
 
-tm_epochs = epoch_data(tm',Fs,Wsize, Ssize);
+tm_epochs = epoch_data(tm',Fs,Wsize,Ssize);
 tm_epochs = squeeze(mean(tm_epochs,1));
 tm_epochs = (tm_epochs - mean(tm_epochs)) / std(tm_epochs);
 
