@@ -101,10 +101,10 @@ elseif strcmp(opt.cca_mode, 'standard')
 end
 % Return found filters from dimension reduced space 
 Vfw = Uf*Vfdr;
-Afw = Vfw;
-% Cff_r = Cff+opt.whitening_reg*eye(size(Cff))*trace(Cff)/size(Cff,1);
-% Cff_r = (Cff_r + Cff_r') / 2; 
-% Afw = (Cff_r ^ 0.5) * Vfw;
+% Afw = Vfw;
+Cff_r = Cff+opt.whitening_reg*eye(size(Cff))*trace(Cff)/size(Cff,1);
+Cff_r = (Cff_r + Cff_r') / 2; 
+Afw = (Cff_r ^ 0.5) * Vfw;
 % Afw = Cff * Vfw;
 
 Vf = unwhiten_global_filters(Vfw,Wm);
@@ -199,8 +199,8 @@ Cxx = mean(Epochs_cov,3);
 Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
 Cxx_r = (Cxx_r + Cxx_r') / 2; 
 iWm = sqrtm(Cxx_r);    
-% Wm = eye(n_channels) / iWm;
-Wm = eye(n_channels);
+Wm = eye(n_channels) / iWm;
+% Wm = eye(n_channels);
 
 % Whightened covariance series (upper triangular parts)
 Epochs_covW = zeros(n_channels,n_channels,n_epochs);
@@ -310,26 +310,9 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)
-    % Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
-    % Cxx_r = (Cxx_r + Cxx_r') / 2; 
-
-    [Ux,Sx] = eig(Cxx); 
-    [sx,idxs] = sort(diag(Sx),'descend'); 
-    Ux = Ux(:,idxs);
-    
-    ve = sx; 
-    var_explained = cumsum(ve) / sum(ve);
-    var_explained(end) = 1;
-    tol = 1e-12;
-    n_components = find(var_explained >= min_var_explained - tol, 1);
-    if isempty(n_components)
-        n_components = length(sx);
-    end
-    Ux = Ux(:, 1:n_components);
-    
+function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)    
     WW = upper2cov(V);
-    W_proj = Ux' * WW * Ux;
+    W_proj = WW;
     W_proj = (W_proj + W_proj') / 2;
     
     [Uw, S] = eig(W_proj);
@@ -342,7 +325,7 @@ function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)
     A = zeros(n_channels, n_local_src);
     
     for local_src_idx = 1:n_local_src
-        wi = Wm' * Ux * Uw(:, local_src_idx); 
+        wi = Wm' * Uw(:, local_src_idx); 
         Wprn = wi / sqrt(wi' * Cxx * wi);
         W(:, local_src_idx) = Wprn;
         A(:, local_src_idx) = Cxx * Wprn; 

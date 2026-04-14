@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\2Git\fieldtrip';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -40,7 +40,6 @@ cfg.style        = 'fill';
 cfg.markersymbol = 'o';
 cfg.colorbar     = 'yes'; 
 
-%%
 N_trials = numel(Xinf.trial)
 
 %%
@@ -85,18 +84,45 @@ z_eps = z_eps_cond(6:8,:);
 
 X_filt_cond = X_filt(:,:,idxs);
 
-% [W,A] = espoc(X_eps,z_eps);
-[W,A] = espoc(X_eps,mean(z_eps,1));
+% [W,A,~,~,corrs] = espoc(X_eps,mean(z_eps,1));
+% [W, A] = env_corrca(X_eps,mean(z_eps,1));
+% [W, A] = env_corrca(X_filt_cond,Fs,Ws,Ss);
+% [W,A] = spoc_r2(X_eps,mean(z_eps,1));
 % [W,A] = spoc(X_eps,mean(z_eps,1));
+
+figure;
+stem(corrs')
+
+%%
+% pos_3d = Xinf.elec.chanpos(1:38, :); 
+% 
+% % 2. Вычисляем матрицу попарных расстояний (38x38)
+% dist_matrix = pdist2(pos_3d, pos_3d);
+% 
+% % 3. Определяем радиус соседства. 
+% % ВНИМАНИЕ: Проверьте единицы измерения в Xinf.elec.unit!
+% % Если там 'mm' (миллиметры), то радиус соседних электродов обычно ~30-45 мм.
+% % Если 'm' (метры), то радиус будет ~0.03 - 0.045.
+% % Если 'cm' (сантиметры), то ~3 - 4.5.
+% disp(['Единицы измерения координат: ', Xinf.elec.unit]); 
+% radius_val = 1; % Задайте подходящее значение (например, 40 мм)
+% 
+% % Вызываем функцию, передавая новые параметры через пары 'имя', значение
+% [W, A, corrs] = espoc_laplace(X_eps, mean(z_eps,1), ...
+%                               'dist_matrix', dist_matrix, ...
+%                               'radius', radius_val);
+% 
+% figure;
+% stem(corrs)
 
 %%
 src_idx = 1;
 comp_idx = 1;
 
-% wx = W(src_idx,:,comp_idx)';
-% ax = A(src_idx,:,comp_idx);
-wx = W(:,comp_idx);
-ax = A(:,comp_idx);
+wx = W(src_idx,:,comp_idx)';
+ax = A(src_idx,:,comp_idx);
+% wx = W(:,comp_idx);
+% ax = A(:,comp_idx);
 
 [~, max_idx] = max(abs(ax));
 ax = ax * sign(ax(max_idx));
