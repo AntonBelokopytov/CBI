@@ -1,4 +1,4 @@
-function [W, A, Vf, Vz, corrs, Feat, Epochs_cov, eigenvalues] = espoc(X_epochs, Z, varargin)
+function [W, A, corrs] = espoc(X_epochs, Z, varargin)
 % Extended Source Power Co-modulation (eSPoC)
 %
 % This function implements the eSPoC framework for explaining variability
@@ -102,10 +102,10 @@ end
 % Return found filters from dimension reduced space 
 Vfw = Uf*Vfdr;
 % Afw = Vfw;
-Cff_r = Cff+opt.whitening_reg*eye(size(Cff))*trace(Cff)/size(Cff,1);
-Cff_r = (Cff_r + Cff_r') / 2; 
-Afw = (Cff_r ^ 0.5) * Vfw;
-% Afw = Cff * Vfw;
+% Cff_r = Cff+opt.whitening_reg*eye(size(Cff))*trace(Cff)/size(Cff,1);
+% Cff_r = (Cff_r + Cff_r') / 2; 
+% Afw = (Cff_r ^ 0.5) * Vfw;
+Afw = Cff * Vfw;
 
 Vf = unwhiten_global_filters(Vfw,Wm);
 

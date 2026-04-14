@@ -13,7 +13,8 @@ ft_defaults;
 %% =====================================================================
 % LOAD DATA
 % =====================================================================
-sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_OFF_EEG_clean_epochs.fif';
+% sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_OFF_EEG_clean_epochs.fif';
+sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_3_CenterOut_epochs.fif';
 
 cfg = [];
 cfg.dataset = sub_path;
@@ -43,8 +44,8 @@ cfg.colorbar     = 'yes';
 N_trials = numel(Xinf.trial)
 
 %%
-fmin = 9;
-fmax = 14;
+fmin = 15;
+fmax = 25;
 Ws = 1/fmin;   
 Ss = Ws/2; 
 
@@ -69,12 +70,19 @@ for tr_i = 1:N_trials
 end
 
 %%
-idxs = [  0,   1,   2,   3,   6,   8,  12,  13,  15,  16,  17,  19,  22,...
-        24,  25,  28,  30,  32,  33,  35,  37,  39,  41,  42,  44,  45,...
-        48,  50,  51,  55,  57,  58,  59,  62,  63,  65,  69,  70,  73,...
-        74,  75,  78,  79,  82,  85,  88,  89,  92,  93,  94,  97, 100,...
-       101, 103, 105, 106, 110, 111, 112, 117, 118, 121, 122, 124, 126,...
-       128, 131, 132, 134, 136, 137, 138] + 1;
+% idxs = [  0,   1,   2,   3,   6,   8,  12,  13,  15,  16,  17,  19,  22,...
+%         24,  25,  28,  30,  32,  33,  35,  37,  39,  41,  42,  44,  45,...
+%         48,  50,  51,  55,  57,  58,  59,  62,  63,  65,  69,  70,  73,...
+%         74,  75,  78,  79,  82,  85,  88,  89,  92,  93,  94,  97, 100,...
+%        101, 103, 105, 106, 110, 111, 112, 117, 118, 121, 122, 124, 126,...
+%        128, 131, 132, 134, 136, 137, 138] + 1;
+
+idxs = [  1,   3,   4,   5,   7,   8,  12,  14,  15,  17,  21,  22,  25,...
+        26,  28,  29,  31,  33,  36,  37,  39,  40,  42,  44,  48,  49,...
+        50,  53,  55,  56,  59,  61,  63,  64,  66,  67,  71,  72,  73,...
+        74,  76,  77,  80,  81,  85,  86,  89,  90,  92,  94,  98,  99,...
+       101, 103, 108, 109, 110, 111, 114, 116, 117, 120, 121, 124, 125,...
+       127, 128, 130, 131, 134, 136, 138, 141, 142, 144, 146, 147] + 1;
 
 X_eps_cond = X_tr_epochs(:,:,:,idxs);
 X_eps = X_eps_cond(:,:,:);
@@ -84,14 +92,36 @@ z_eps = z_eps_cond(6:8,:);
 
 X_filt_cond = X_filt(:,:,idxs);
 
-% [W,A,~,~,corrs] = espoc(X_eps,mean(z_eps,1));
-% [W, A] = env_corrca(X_eps,mean(z_eps,1));
+[W, A, corrs] = espoc(X_eps,mean(z_eps,1));
 % [W, A] = env_corrca(X_filt_cond,Fs,Ws,Ss);
 % [W,A] = spoc_r2(X_eps,mean(z_eps,1));
 % [W,A] = spoc(X_eps,mean(z_eps,1));
 
 figure;
 stem(corrs')
+hold on
+
+%%
+Epochs_cov = [];
+for ep_idx = 1:size(X_eps,3)
+    Xcov = cov(X_eps(:,:,ep_idx));
+    Epochs_cov(:,:,ep_idx) = Xcov;
+end
+
+[W,A] = spoc(X_eps,mean(z_eps,1));
+
+corrs = [];
+for w_i = 1:size(W,2)
+    Env = [];
+    for ep_i = 1:size(X_eps,3)
+        Env(ep_i) = W(:,w_i)' * Epochs_cov(:,:,ep_i) * W(:,w_i);
+    end
+    corrs(w_i) = corr(Env',mean(z_eps,1)');
+end
+
+stem(corrs)
+
+legend('eSPoC', 'SPoC')
 
 %%
 % pos_3d = Xinf.elec.chanpos(1:38, :); 
@@ -119,10 +149,10 @@ stem(corrs')
 src_idx = 1;
 comp_idx = 1;
 
-wx = W(src_idx,:,comp_idx)';
-ax = A(src_idx,:,comp_idx);
-% wx = W(:,comp_idx);
-% ax = A(:,comp_idx);
+% wx = W(src_idx,:,comp_idx)';
+% ax = A(src_idx,:,comp_idx);
+wx = W(:,comp_idx);
+ax = A(:,comp_idx);
 
 [~, max_idx] = max(abs(ax));
 ax = ax * sign(ax(max_idx));
