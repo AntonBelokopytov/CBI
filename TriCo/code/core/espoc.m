@@ -102,10 +102,10 @@ end
 % Return found filters from dimension reduced space 
 Vfw = Uf*Vfdr;
 % Afw = Vfw;
-% Cff_r = Cff+opt.whitening_reg*eye(size(Cff))*trace(Cff)/size(Cff,1);
-% Cff_r = (Cff_r + Cff_r') / 2; 
-% Afw = (Cff_r ^ 0.5) * Vfw;
-Afw = Cff * Vfw;
+Cff_r = Cff+opt.whitening_reg*eye(size(Cff))*trace(Cff)/size(Cff,1);
+Cff_r = (Cff_r + Cff_r') / 2; 
+Afw = (Cff_r ^ 0.5) * Vfw;
+% Afw = Cff * Vfw;
 
 Vf = unwhiten_global_filters(Vfw,Wm);
 
