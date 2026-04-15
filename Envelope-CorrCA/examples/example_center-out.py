@@ -10,6 +10,65 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
+
+
+
+# %%
+import mne
+import numpy as np
+import os
+import glob
+from scipy.io import savemat
+
+# 1. Настройка путей
+data_dir = 'D:/OS(CURRENT)/data/parkinson/control/'
+# Ищем все файлы типа Control_..._epochs.fif
+file_pattern = os.path.join(data_dir, 'Control_*_CenterOut_epochs.fif')
+
+# Папка, куда сохраним списки индексов
+out_dir = 'D:/OS(CURRENT)/data/parkinson/indices_simple/'
+os.makedirs(out_dir, exist_ok=True)
+
+subject_files = glob.glob(file_pattern)
+
+for dpath in subject_files:
+    # Определяем имя испытуемого (например, Control_3)
+    basename = os.path.basename(dpath)
+    sub_name = basename.split('_CenterOut')[0]
+    
+    print(f"Обработка {sub_name}...")
+    
+    # Загружаем только метаданные (preload=False), чтобы было мгновенно
+    epochs = mne.read_epochs(dpath, preload=False, verbose=False)
+    
+    if epochs.metadata is not None:
+        # Применяем твою маску
+        mask = (
+            (epochs.metadata['pp'] == 2) & 
+            (epochs.metadata['correct_trials'] == 1)
+        )
+        
+        # Получаем индексы
+        # ВАЖНО: прибавляем 1, если планируешь использовать в MATLAB!
+        # Если только в Python — убавь "+ 1"
+        idx = np.where(mask)[0] + 1 
+        
+        # --- Вариант А: Сохранение в .mat файл (для MATLAB) ---
+        savemat(os.path.join(out_dir, f"{sub_name}_idx.mat"), {'idx': idx})
+        
+        # --- Вариант Б: Сохранение в .txt (простой текстовый список) ---
+        # np.savetxt(os.path.join(out_dir, f"{sub_name}_idx.txt"), idx, fmt='%d')
+        
+        print(f"  Найдено индексов: {len(idx)}. Сохранено в {sub_name}_idx.mat")
+    else:
+        print(f"  У {sub_name} отсутствуют метаданные.")
+
+print("\nГотово! Все списки сохранены.")
+
+# %%
+
+
+
 # %%
 # For parkinson example chose 8-12 Hz filter below
 # dpath = 'D:/OS(CURRENT)/data/parkinson/pathology/Patient_1_CenterOut_OFF_EEG_clean_epochs.fif'
