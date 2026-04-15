@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip\';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip\';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -10,7 +10,7 @@ end
 
 %% Target epochs
 % sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_OFF_EEG_clean_epochs.fif';
-sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_3_CenterOut_epochs.fif';
+sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_1_CenterOut_epochs.fif';
 cfg = [];
 cfg.dataset = sub_path; 
 Epochs_inf = ft_preprocessing(cfg); 
@@ -26,12 +26,12 @@ Fs = Epochs_inf.hdr.Fs;
 %         74,  75,  78,  79,  82,  85,  88,  89,  92,  93,  94,  97, 100,...
 %        101, 103, 105, 106, 110, 111, 112, 117, 118, 121, 122, 124, 126,...
 %        128, 131, 132, 134, 136, 137, 138] + 1;
-idxs = [  1,   3,   4,   5,   7,   8,  12,  14,  15,  17,  21,  22,  25,...
-        26,  28,  29,  31,  33,  36,  37,  39,  40,  42,  44,  48,  49,...
-        50,  53,  55,  56,  59,  61,  63,  64,  66,  67,  71,  72,  73,...
-        74,  76,  77,  80,  81,  85,  86,  89,  90,  92,  94,  98,  99,...
-       101, 103, 108, 109, 110, 111, 114, 116, 117, 120, 121, 124, 125,...
-       127, 128, 130, 131, 134, 136, 138, 141, 142, 144, 146, 147] + 1;
+idxs = [  0,   2,   4,   7,   8,   9,  12,  14,  17,  19,  20,  21,  24,...
+        26,  30,  31,  33,  34,  36,  37,  40,  43,  44,  47,  48,  49,...
+        53,  55,  56,  59,  60,  62,  65,  66,  70,  71,  74,  75,  76,...
+        81,  82,  83,  85,  87,  90,  91,  93,  96,  98, 100, 102, 104,...
+       105, 108, 110, 111, 114, 116, 119, 120, 122, 123, 126, 128, 131,...
+       133, 134, 136, 140, 141, 143, 145, 148] + 1;
 
 all_idxd = 1:numel(Epochs_inf.trial);
 % idxs = setdiff(all_idxd, idxs); 
@@ -42,7 +42,7 @@ all_idxd = 1:numel(Epochs_inf.trial);
 % ---------------------------------------------------------
 % ОПТИМИЗИРОВАННЫЙ БЛОК: ДИНАМИЧЕСКАЯ ШИРИНА ПОЛОСЫ
 % ---------------------------------------------------------
-fc_list = 5:35;          
+fc_list = 5:30;          
 num_bands = length(fc_list);
 num_comps_to_analyze = 10; 
 
@@ -57,7 +57,7 @@ for fb = 1:num_bands
     % Делаем ширину окна зависящей от частоты (например, +/- 15% от Fc)
     % Для 10 Гц это будет +/- 1.5 Гц (7.5 - 11.5 Гц)
     % Для 20 Гц это будет +/- 3.0 Гц (17.0 - 23.0 Гц)
-    band_halfwidth = max(2, Fc * 0.20);
+    band_halfwidth = max(2, Fc * 0.10);
 
     Fmin = Fc - band_halfwidth;
     Fmax = Fc + band_halfwidth;

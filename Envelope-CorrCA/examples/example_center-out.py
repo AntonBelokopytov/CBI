@@ -14,6 +14,7 @@ from matplotlib.gridspec import GridSpec
 # For parkinson example chose 8-12 Hz filter below
 # dpath = 'D:/OS(CURRENT)/data/parkinson/pathology/Patient_1_CenterOut_OFF_EEG_clean_epochs.fif'
 dpath = 'D:/OS(CURRENT)/data/parkinson/control/Control_3_CenterOut_epochs.fif'
+# dpath = 'D:/OS(CURRENT)/data/parkinson/control/Control_3_CenterOut_epochs.fif'
 
 epochs = mne.read_epochs(dpath, preload=True)
 
@@ -58,7 +59,7 @@ epochs_eeg[idx].copy().filter(l_freq=0.1,h_freq=20).average(tmin=2.8,tmax=4).plo
 epochs_eeg[idx].copy().filter(0.1, 20).crop(tmin=1.8,tmax=3).average().plot()
 
 # %%
-epochs_eeg[idx].compute_psd(fmin=1,fmax=30).plot()
+epochs_eeg[idx].compute_psd(fmin=1,fmax=35).plot()
 
 # %%
 epochs_pp2 = epochs[idx]
