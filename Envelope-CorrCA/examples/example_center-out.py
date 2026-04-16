@@ -11,8 +11,6 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
 
-
-
 # %%
 import mne
 import numpy as np
@@ -71,8 +69,8 @@ print("\nГотово! Все списки сохранены.")
 
 # %%
 # For parkinson example chose 8-12 Hz filter below
-# dpath = 'D:/OS(CURRENT)/data/parkinson/pathology/Patient_1_CenterOut_OFF_EEG_clean_epochs.fif'
-dpath = 'D:/OS(CURRENT)/data/parkinson/control/Control_3_CenterOut_epochs.fif'
+dpath = 'D:/OS(CURRENT)/data/parkinson/pathology/Patient_1_CenterOut_OFF_EEG_clean_epochs.fif'
+# dpath = 'D:/OS(CURRENT)/data/parkinson/control/Control_3_CenterOut_epochs.fif'
 # dpath = 'D:/OS(CURRENT)/data/parkinson/control/Control_3_CenterOut_epochs.fif'
 
 epochs = mne.read_epochs(dpath, preload=True)
@@ -82,6 +80,182 @@ epochs.info
 # %%
 epochs_eeg = epochs.copy().pick_channels(epochs.ch_names[:38])
 epochs_vars = epochs.copy().pick_channels(epochs.ch_names[38:])
+
+# %%
+freqs = np.arange(2, 30, 1)
+
+# Количество циклов для вейвлета. Динамическое значение (freqs / 2.0) 
+# дает лучшее разрешение по времени для низких частот и по частоте для высоких.
+n_cycles = freqs / 2.0 
+
+# 2. Рассчитываем TFR
+# average=True усреднит данные по всем эпохам. return_itc=False отключает расчет межгрупповой когерентности.
+power = mne.time_frequency.tfr_morlet(epochs_eeg, 
+                                      freqs=freqs, 
+                                      n_cycles=n_cycles, 
+                                      return_itc=False, 
+                                      average=True)
+
+# %%
+import matplotlib.pyplot as plt
+
+# Создаем копию, чтобы случайно не применить бейзлайн несколько раз при перезапуске ячейки
+power_bsl = power.copy()
+
+# Применяем коррекцию базовой линии ко всем данным (от начала эпохи до 0)
+# mode='percent' переведет значения в процентное изменение (ERD/ERS)
+power_bsl.apply_baseline(baseline=(None, 0), mode='percent')
+
+# ==============================================================================
+# 1. Средняя мощность по всем отведениям в мю (8-12 Гц) и бете (13-29 Гц)
+# ==============================================================================
+
+# Создаем график
+fig, ax = plt.subplots(figsize=(10, 5))
+
+# Вырезаем нужные диапазоны частот с помощью crop()
+# Свойство .data возвращает массив NumPy размерности (каналы, частоты, время).
+# Усредняем данные по каналам (axis=0) и частотам (axis=1), оставляя только время.
+mu_power = power_bsl.copy().crop(fmin=8, fmax=12).data.mean(axis=(0, 1))
+beta_power = power_bsl.copy().crop(fmin=13, fmax=29).data.mean(axis=(0, 1))
+
+# Вектор времени берем напрямую из объекта power
+time_axis = power_bsl.times
+
+# Строим линии
+ax.plot(time_axis, mu_power, label='Мю-ритм (8-12 Гц)', linewidth=2, color='#1f77b4')
+ax.plot(time_axis, beta_power, label='Бета-ритм (13-29 Гц)', linewidth=2, color='#d62728')
+
+# Оформление графика
+ax.axvline(0, color='black', linestyle='--', label='Событие (t=0)')
+ax.axhline(0, color='gray', linestyle='-') # Линия нулевого изменения
+ax.set_title('Средняя динамика мощности (ERD/ERS) по всем отведениям')
+ax.set_xlabel('Время (с)')
+ax.set_ylabel('Изменение мощности (%)')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+plt.show()
+
+# ==============================================================================
+# 2. Топография с вложенными частотно-временными графиками
+# ==============================================================================
+
+# В MNE для этого есть специальный метод plot_topo().
+# Так как мы уже применили apply_baseline(), данные отрисуются сразу с учетом коррекции.
+# Если у ваших данных нет стандартных координат электродов (montage), 
+# MNE может потребовать их задать через epochs_eeg.set_montage('standard_1020')
+
+# %%
+fig_topo = power_bsl.plot_topo(title='Топография TFR', 
+                               # vmin=-1.5, vmax=1.5, # Лимиты цвета (подгоните под ваши данные)
+                               fig_facecolor='w', 
+                               font_color='k')
+plt.show()
+
+# %%
+import numpy as np
+
+# Убедимся, что у нас есть нужные каналы для ROI (Region of Interest)
+# Замените названия, если в вашей системе они пишутся иначе (например, 'EEG C3')
+# motor_channels = ['C3', 'C4', 'Cz']
+motor_channels = ['C3']
+picks_motor = [ch for ch in motor_channels if ch in power_bsl.ch_names]
+
+if not picks_motor:
+    print("Внимание: каналы C3, C4, Cz не найдены. Берутся первые 3 канала для демонстрации.")
+    picks_motor = power_bsl.ch_names[:3]
+
+# ==============================================================================
+# 3. TFR Heatmap (Тепловая карта) для сенсомоторной зоны
+# ==============================================================================
+# Усредняем данные по выбранным каналам (combine='mean'), чтобы получить чистый паттерн ERD/ERS
+
+# fig_tfr = power_bsl.copy().pick_channels(picks_motor).plot(
+#     combine='mean',
+#     title=f'Усредненный TFR для сенсомоторной коры ({", ".join(picks_motor)})',
+#     # vmin=-2.0, vmax=2.0,  # Лимиты шкалы (в процентах). Подгоните при необходимости.
+#     cmap='RdBu_r'         # Красно-синяя палитра (синий - десинхронизация/ERD, красный - синхронизация/ERS)
+# )
+
+# ==============================================================================
+# 4. Топокарты (Topomaps) для конкретных окон (Мю и Бета)
+# ==============================================================================
+# Строим топографии распределения мощности для конкретных окон после стимула.
+# Допустим, нас интересует окно от 0.0 до 1.0 секунды.
+
+fig, axes = plt.subplots(1, 3, figsize=(10, 5))
+
+axes[0].set_title('Мю (9-14 Гц)\n-1.0 - 0.0 с')
+power_bsl.plot_topomap(
+    tmin=-1.0, tmax=0.0, fmin=9, fmax=14,
+    axes=axes[0], show=False, contours=0,
+    # vmin=-1.5, vmax=1.5, 
+    cmap='RdBu_r', colorbar=True
+)
+
+axes[1].set_title('Мю (9-14 Гц)\n0.0 - 1.0 с')
+# Мю-ритм (8-12 Гц)
+power_bsl.plot_topomap(
+    tmin=0.0, tmax=1.0, fmin=9, fmax=14,
+    axes=axes[1], show=False, contours=0,
+    # vmin=-1.5, vmax=1.5, 
+    cmap='RdBu_r', colorbar=True
+)
+
+axes[2].set_title('Мю (9-14 Гц)\n2.0 - 3.0 с')
+# Бета-ритм (13-29 Гц)
+power_bsl.plot_topomap(
+    tmin=1.0, tmax=2.0, fmin=9, fmax=14,
+    axes=axes[2], show=False, contours=0,
+    # vmin=-1.5, vmax=1.5, 
+    cmap='RdBu_r', colorbar=True
+)
+
+fig.suptitle('Пространственное распределение ERD/ERS (%)', fontsize=14)
+plt.show()
+
+# ==============================================================================
+# 5. Joint Plot (Комбинированный график TFR + Topo)
+# ==============================================================================
+# Этот график сам находит пики изменений и рисует для них топографии.
+# timefreqs: можно задать конкретные точки [(время, частота), ...], 
+# либо оставить None, и MNE найдет локальные экстремумы автоматически.
+
+# Для примера ограничим график частотами до 30 Гц и зададим пару точек вручную (или автоматически)
+fig_joint = power_bsl.plot_joint(
+    timefreqs=[(0.5, 20), (2.5, 20), (3, 20)], # Смотрим топографию на 0.5с (10 Гц) и 1.5с (20 Гц)
+    title='C3, C4, Cz time-frequency',
+    # vmin=-2.0, vmax=2.0,
+    cmap='RdBu_r'
+)
+plt.show()
+
+# %%
+# 3. Настройка параметров отрисовки
+# Мю-ритм лучше всего виден на электродах сенсомоторной зоны (С3, С4, Cz).
+sensorimotor_channels = ['C3']
+# Проверяем, есть ли эти каналы в ваших данных
+picks = [ch for ch in sensorimotor_channels if ch in epochs_eeg.ch_names]
+
+if not picks:
+    print("Стандартные сенсомоторные каналы не найдены. Будет отрисован первый доступный канал.")
+    picks = [epochs_eeg.ch_names[0]]
+
+# Задаем базовую линию (baseline). 
+# Например, от начала эпохи до момента 0 (момент наступления события). 
+# Замените значения на те, которые подходят для вашего дизайна эксперимента!
+baseline = (None, 0) 
+
+# 4. Строим график
+# mode='percent' покажет процентное изменение мощности относительно базовой линии
+fig = power.plot(picks=picks, 
+                 baseline=baseline, 
+                 mode='percent', 
+                 title='C3',
+                 ) # Лимиты цветовой шкалы (возможно, придется подогнать под ваши данные)
+
+plt.show()
 
 # %%
 # 1. Извлекаем монтаж

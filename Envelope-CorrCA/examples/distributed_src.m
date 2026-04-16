@@ -8,9 +8,6 @@ if ~exist('ft_defaults','file')
     addpath(ft_path);
 end
 
-%%
-fwd_model = load('fsaverage_38ch_leadfield.mat');
-
 %% Target epochs
 sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_OFF_EEG_clean_epochs.fif';
 % sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_3_CenterOut_epochs.fif';
@@ -39,11 +36,13 @@ idxs = [  0,   1,   2,   3,   6,   8,  12,  13,  15,  16,  17,  19,  22,...
 all_idxd = 1:numel(Epochs_inf.trial);
 % idxs = setdiff(all_idxd, idxs); 
 
-Fc = 12;
+Fc = 10;
 band_halfwidth = max(2, Fc * 0.10);
 
-Fmin = Fc - band_halfwidth;
-Fmax = Fc + band_halfwidth;
+% Fmin = Fc - band_halfwidth;
+% Fmax = Fc + band_halfwidth;
+Fmin = 9;
+Fmax = 14;
 band = [Fmin Fmax];
 
 Wsize = 1/Fc;
@@ -72,12 +71,15 @@ figure
 plot(mean(z_trials(:,1,:),3))
 
 %%
+fwd_model = load('fsaverage_38ch_leadfield.mat');
+
+%%
 source_pos = fwd_model.source_pos; 
 sensor_pos = fwd_model.sensor_pos; 
 figure('Name', 'MNE Forward Model 3D', 'Color', 'w');
 
 scatter3(source_pos(:,1), source_pos(:,2), source_pos(:,3), ...
-    5, [0.7 0.7 0.7], 'filled', 'MarkerFaceAlpha', 0.1);
+    5, [0.7 0.7 0.7], 'filled', 'MarkerFaceAlpha', 0.6);
 
 hold on
 
@@ -85,7 +87,7 @@ scatter3(sensor_pos(:,1), sensor_pos(:,2), sensor_pos(:,3), ...
     60, 'r', 'filled', 'MarkerEdgeColor', 'k');
 
 %% Применение Лапласиана
-Patterns = squeeze(A(1,:,:));
+Patterns = squeeze(A(2,:,1:38));
 
 % 1. Подготовка данных
 X = fwd_model.sensor_pos(:,1);
@@ -284,7 +286,7 @@ title(['Equivalent Dipole for Pattern ', num2str(src)], 'FontSize', 14);
 hold off;
 
 %% Визуализация кластеров диполей: Центроид и Среднее направление
-gl_s = 1:4;          % Массив с номерами паттернов
+gl_s = 37:38;          % Массив с номерами паттернов
 N_best = 200;        % Количество топовых решений для каждого паттерна
 line_length = 0.05;  % Длина отрезка (диполя) в метрах
 
@@ -296,7 +298,7 @@ hold on; grid on;
 
 % 1. Рисуем кору головного мозга (фоновое облако источников)
 scatter3(source_pos(:,1), source_pos(:,2), source_pos(:,3), ...
-    5, [0.7 0.7 0.7], 'filled', 'MarkerFaceAlpha', 0.4, 'HandleVisibility', 'off');
+    5, [0.7 0.7 0.7], 'filled', 'MarkerFaceAlpha', 0.6, 'HandleVisibility', 'off');
 
 h_lines = zeros(1, length(gl_s));
 legend_labels = cell(1, length(gl_s));
@@ -340,7 +342,7 @@ for idx = 1:length(gl_s)
     
     % Рисуем облако "побочных" решений
     scatter3(top_coords(:,1), top_coords(:,2), top_coords(:,3), ...
-        80 * fit_weights, C, 'filled', 'MarkerFaceAlpha', 0.5, 'HandleVisibility', 'off');
+        80 * fit_weights, C, 'filled', 'MarkerFaceAlpha', 0.7, 'HandleVisibility', 'off');
     
     % --- РАСЧЕТ ЦЕНТРОИДА И СРЕДНЕГО НАПРАВЛЕНИЯ ---
     
@@ -358,8 +360,8 @@ for idx = 1:length(gl_s)
     p2 = centroid_pos + (line_length / 2) * avg_alpha_norm;
     
     % Отрисовка результирующего диполя
-    h_lines(idx) = plot3([p1(1) p2(1)], [p1(2) p2(2)], [p1(3) p2(3)], ...
-            '-', 'Color', base_color, 'LineWidth', 6); % Чуть жирнее для акцента
+    % h_lines(idx) = plot3([p1(1) p2(1)], [p1(2) p2(2)], [p1(3) p2(3)], ...
+    %         '-', 'Color', base_color, 'LineWidth', 6); % Чуть жирнее для акцента
         
     % legend_labels{idx} = sprintf('Pattern %d (Centroid/Avg)', src);
 end
@@ -377,14 +379,16 @@ lighting gouraud;
 hold off;
 
 %%
-gl_c = 1;
-comp_idx = 6;
+gl_c = 2;
+comp_idx = 38;
 wx = squeeze(W(gl_c,:,comp_idx))';
 patt = squeeze(A(gl_c,:,comp_idx));
 % wx = squeeze(W(:,comp_idx));
 % patt = squeeze(A(:,comp_idx));
+
 patt = Patterns_CSD(:,comp_idx);
 
+timp = 2;
 patt = patt * sign(patt(abs(patt)==max(abs(patt))));
 
 clear Yenv Yseg
@@ -408,7 +412,7 @@ elec.label    = elec.label(1:38);
 figure; hold on; grid on
 set(gcf,'Color','w');
 
-tsec     = linspace(-3, 4, size(Yenv,1));
+tsec     = linspace(-1, 6, size(Yenv,1));
 E        = size(Yenv, 2);
 env_mean = mean(Yenv, 2, 'omitnan');
 sd       = std (Yenv, 0, 2, 'omitnan');
@@ -424,7 +428,7 @@ axH = nexttile(t, 1, [3 1]);          % левая колонка, 3 строк�
 imagesc(axH, tsec, 1:E, Yenv');
 set(axH,'YDir','normal','Color','w'); grid(axH,'on');
 xline(axH, 0, 'k--', 'LineWidth', 2);
-% xline(axH, -2, 'k--', 'LineWidth', 2);
+xline(axH, timp, 'k--', 'LineWidth', 2);
 xlabel(axH,'time, s'); ylabel(axH,'epoch');
 title(axH,'Envelope per epoch');
 colorbar(axH);
@@ -435,6 +439,7 @@ axERP = nexttile(t, 2); hold(axERP,'on'); grid(axERP,'on');
 set(axERP,'Color','w');
 plot(axERP, tsec, Yseg);
 xline(axERP, 0, 'k--', 'LineWidth', 2);
+xline(axERP, timp, 'k--', 'LineWidth', 2);
 % xline(axERP, -2, 'k--', 'LineWidth', 2);
 xlabel(axERP,'time, s'); ylabel(axERP,'amplitude');
 title(axERP,'Source activity (all epochs)');
@@ -447,7 +452,7 @@ yfill = [ (env_mean+sd).', fliplr((env_mean-sd).') ];
 fill(axENV, xfill, yfill, [0.3 0.5 1.0], 'FaceAlpha',0.2, 'EdgeColor','none');
 plot(axENV, tsec, env_mean, 'Color', [0.1 0.3 0.9], 'LineWidth', 2);
 xline(axENV, 0, 'k--', 'LineWidth', 2);
-% xline(axENV, -2, 'k--', 'LineWidth', 2);
+xline(axENV, timp, 'k--', 'LineWidth', 2);
 xlabel(axENV,'time, s'); ylabel(axENV,'envelope (a.u.)');
 title(axENV,'Mean envelope \pm SD');
 
@@ -528,4 +533,4 @@ set(findall(p6, 'type','axes'), 'Color', figCol);
 linkaxes([axH axERP axENV], 'x');
 
 % Жестко фиксируем границы от -3 до 4
-xlim(axH, [-3, 4]);
+xlim(axH, [-1, 6]);

@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 from scipy.io import savemat
 
 # %%
-
-
 # 1. Загрузка fsaverage
 fs_dir = mne.datasets.fetch_fsaverage(verbose=False)
 bem_fname = os.path.join(fs_dir, 'bem', 'fsaverage-5120-5120-5120-bem-sol.fif')
@@ -31,8 +29,6 @@ info.set_montage(montage)
 info.rename_channels({v: k for k, v in ch_mapping.items()})
 
 # %%
-
-
 # 4. Расчет forward модели
 print("Рассчитываем forward solution...")
 fwd = mne.make_forward_solution(
@@ -47,7 +43,7 @@ fwd = mne.make_forward_solution(
 )
 
 # %%
-# 5. Фиксируем ориентацию
+# 5. 
 fwd_fixed = mne.convert_forward_solution(fwd, surf_ori=False, force_fixed=False, use_cps=True)
 
 # 6. Извлекаем матрицу лидфилда и координаты
