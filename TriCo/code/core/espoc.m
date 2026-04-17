@@ -81,10 +81,10 @@ function [W, A, corrs] = espoc(X_epochs, Z, varargin)
 
 opt= propertylist2struct(varargin{:});
 opt= set_defaults(opt, ...
-                  'X_min_var_explained', 1, ...
+                  'X_min_var_explained', 0.99, ...
                   'whitening_reg', 10e-5, ...
                   'cca_mode', 'regularized', ...
-                  'cca_reg', 10e-5);
+                  'cca_reg', 10e-2);
 
 Z = (Z - mean(Z,2)) ./ std(Z,[],2);
 
@@ -102,10 +102,10 @@ end
 % Return found filters from dimension reduced space 
 Vfw = Uf*Vfdr;
 % Afw = Vfw;
-Cff_r = Cff+opt.whitening_reg*eye(size(Cff))*trace(Cff)/size(Cff,1);
-Cff_r = (Cff_r + Cff_r') / 2; 
-Afw = (Cff_r ^ 0.5) * Vfw;
-% Afw = Cff * Vfw;
+% Cff_r = Cff+opt.whitening_reg*eye(size(Cff))*trace(Cff)/size(Cff,1);
+% Cff_r = (Cff_r + Cff_r') / 2; 
+% Afw = (Cff_r ^ 0.5) * Vfw;
+Afw = Cff * Vfw;
 
 Vf = unwhiten_global_filters(Vfw,Wm);
 
@@ -316,7 +316,7 @@ function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)
     W_proj = (W_proj + W_proj') / 2;
     
     [Uw, S] = eig(W_proj);
-    [s, idxs] = sort(diag(S),'descend');
+    [s, idxs] = sort(diag(abs(S)),'descend');
     Uw = Uw(:,idxs);
     
     n_channels = size(Cxx, 1);
