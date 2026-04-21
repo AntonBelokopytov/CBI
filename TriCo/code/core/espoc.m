@@ -106,6 +106,7 @@ Vfw = Uf*Vfdr;
 % Cff_r = (Cff_r + Cff_r') / 2; 
 % Afw = (Cff_r ^ 0.5) * Vfw;
 Afw = Cff * Vfw;
+% Afw = Vfw;
 
 Vf = unwhiten_global_filters(Vfw,Wm);
 
@@ -311,12 +312,15 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)    
+    Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
+    Cxx_r = (Cxx_r + Cxx_r') / 2; 
+
     WW = upper2cov(V);
     W_proj = WW;
     W_proj = (W_proj + W_proj') / 2;
     
     [Uw, S] = eig(W_proj);
-    [s, idxs] = sort(diag(abs(S)),'descend');
+    [s, idxs] = sort(diag(S),'descend');
     Uw = Uw(:,idxs);
     
     n_channels = size(Cxx, 1);
