@@ -1,83 +1,4 @@
 function [W, A, corrs] = espoc(X_epochs, Z, varargin)
-% Extended Source Power Co-modulation (eSPoC)
-%
-% This function implements the eSPoC framework for explaining variability
-% of EEG/MEG covariance features with respect to a multidimensional external
-% regressor (e.g., UMAP embedding coordinates).
-%
-% INPUT:
-%   X_epochs  - Band-pass filtered epoched data
-%               size: [n_samples_per_epoch, n_channels, n_epochs]
-%
-%   z         - Multidimensional external regressor
-%               size: [n_regressors, n_epochs]
-%               (e.g., embedding coordinates)
-%
-% OPTIONAL PARAMETERS:
-%   'X_min_var_explained' - Fraction of variance (0–1) retained during PCA
-%                           in covariance feature space (default: 1)
-%
-%   'whitening_reg'       - Regularization parameter for covariance whitening
-%                           (default: 1e-4)
-%
-%   'cca_mode'            - 'regularized' (default) or 'standard'
-%
-%   'cca_reg'             - Regularization parameter for CCA (0–1)
-%
-%   'ww_reg'              - Regularization during projection from
-%                           covariance feature space to rank-1 matrices
-%
-%
-% ALGORITHM OVERVIEW:
-%
-% 1) For each epoch, compute sensor covariance matrix C(e).
-%
-% 2) Whiten covariances and map them to an unconstrained linear space
-%    by vectorizing the upper triangular part.
-%
-% 3) Optionally reduce dimensionality of covariance features using PCA.
-%
-% 4) Apply Canonical Correlation Analysis (CCA) between covariance
-%    features and the external regressor z.
-%
-%    This yields canonical vectors:
-%       Vf – in covariance feature space (unconstrained solution)
-%       Vz – in regressor space
-%
-% 5) Transform canonical vectors into covariance patterns and
-%    project each solution back to sensor space via rank-1 approximation.
-%
-%    This produces spatial filters W and corresponding spatial patterns A.
-%
-% OUTPUT:
-%
-%   W           - Spatial filters in sensor space
-%                 size: [n_sources, n_channels, n_components]
-%
-%   A           - Corresponding spatial patterns (forward-model patterns)
-%                 size: [n_sources, n_channels, n_components]
-%
-%   Vf          - Canonical vectors in covariance feature space
-%
-%   Vz          - Canonical vectors in regressor space
-%
-%   corrs       - Correlation between reconstructed source power
-%                 and projected regressor
-%
-%   F           - Vectorized covariance features (before PCA)
-%
-%   Epochs_cov  - Epoch-wise covariance matrices
-%
-%   eigenvalues - Eigenvalues of reconstructed covariance matrices
-%                 (used to interpret global vs local source modes)
-%
-% Conceptual interpretation:
-%
-% - Vf defines "global source modes" in covariance feat ure space.
-% - Eigen-decomposition of reconstructed matrices yields
-%   "local spatial modes" (rank-1 components).
-% - W and A provide interpretable spatial filters and patterns
-%   within the standard EEG/MEG forward model. 
 
 opt= propertylist2struct(varargin{:});
 opt= set_defaults(opt, ...
@@ -100,15 +21,8 @@ elseif strcmp(opt.cca_mode, 'standard')
     [Vfdr, Vz] = canoncorr(Featdr', Z');
 end
 % Return found filters from dimension reduced space 
-Vfw = Uf*Vfdr;
-% Afw = Vfw;
-% Cff_r = Cff+opt.whitening_reg*eye(size(Cff))*trace(Cff)/size(Cff,1);
-% Cff_r = (Cff_r + Cff_r') / 2; 
-% Afw = (Cff_r ^ 0.5) * Vfw;
+Vfw = Uf * Vfdr;
 Afw = Cff * Vfw;
-% Afw = Vfw;
-
-Vf = unwhiten_global_filters(Vfw,Wm);
 
 % en = Vfw' * Feat;
 % en = (en - mean(en)) / std(en);
@@ -199,9 +113,10 @@ Cxx = mean(Epochs_cov,3);
 % Whitening matrix
 Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
 Cxx_r = (Cxx_r + Cxx_r') / 2; 
-iWm = sqrtm(Cxx_r);    
-Wm = eye(n_channels) / iWm;
-% Wm = eye(n_channels);
+% iWm = sqrtm(Cxx_r);    
+% Wm = eye(n_channels) / iWm;
+% Wm = eye(n_channels) / iWm;
+Wm = eye(n_channels);
 
 % Whightened covariance series (upper triangular parts)
 Epochs_covW = zeros(n_channels,n_channels,n_epochs);
@@ -299,18 +214,6 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function Vf_orig = unwhiten_global_filters(Vf, Wm)
-    Vf_orig = zeros(size(Vf));
-    
-    for i = 1:size(Vf, 2)
-        V_white_mat = upper2cov(Vf(:, i));
-        V_orig_mat = Wm * V_white_mat * Wm;
-        Vf_orig(:, i) = cov2upper(V_orig_mat);
-    end
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)    
     Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
     Cxx_r = (Cxx_r + Cxx_r') / 2; 
@@ -319,7 +222,7 @@ function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)
     W_proj = WW;
     W_proj = (W_proj + W_proj') / 2;
     
-    [Uw, S] = eig(W_proj);
+    [Uw, S] = eig(W_proj, Cxx_r);
     [s, idxs] = sort(diag(S),'descend');
     Uw = Uw(:,idxs);
     
@@ -332,7 +235,7 @@ function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)
         wi = Wm' * Uw(:, local_src_idx); 
         Wprn = wi / sqrt(wi' * Cxx * wi);
         W(:, local_src_idx) = Wprn;
-        A(:, local_src_idx) = Cxx * Wprn; 
+        A(:, local_src_idx) = Cxx_r * Wprn; 
     end
 end
 

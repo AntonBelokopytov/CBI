@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -92,11 +92,9 @@ z_eps = z_eps_cond(6:8,:);
 
 X_filt_cond = X_filt(:,:,idxs);
 
-[W, A, corrs] = espoc(X_eps,mean(z_eps,1));
-% [W, A, corrs] = espoc_def(X_eps,mean(z_eps,1));
-% [W, A] = env_corrca(X_filt_cond,Fs,Ws,Ss);
-% [W,A] = spoc_r2(X_eps,mean(z_eps,1));
-% [W,A] = spoc(X_eps,mean(z_eps,1));
+pos = Xinf.elec.chanpos; 
+Dists = pdist2(pos, pos); 
+[W, A, corrs] = espoc_laplace(X_eps, mean(z_eps,1), Dists);
 
 figure;
 stem(corrs')
@@ -120,6 +118,7 @@ for w_i = 1:size(W,2)
     corrs(w_i) = corr(Env',mean(z_eps,1)');
 end
 
+figure
 stem(corrs)
 
 legend('eSPoC', 'SPoC')
