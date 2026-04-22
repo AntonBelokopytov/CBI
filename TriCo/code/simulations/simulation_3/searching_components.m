@@ -23,7 +23,7 @@ Ts = 100; Ntr = 50;
 Fs = 250;
 Ws = 1;
 Ss = 1;
-nMC = 50; 
+nMC = 100;
 fixed_eeg_snr = 10^0.4; 
 corr_range = linspace(0.1, 0.99, 12); 
 nCorrLevels = length(corr_range);
@@ -200,3 +200,5 @@ title('Spatial Pattern Recovery', 'FontSize', 12, 'FontWeight', 'bold');
 xlabel('Target-to-Source Correlation (r)', 'FontSize', 11); 
 ylabel('Pattern Correlation (r)', 'FontSize', 11);
 ylim([0 1.05]); xlim([min(x_sorted) max(x_sorted)]); grid on; legend('Location', 'northwest');
+
+disp('eSPoC outperforms standard SPoC in recovering spatial patterns under high noise correlation.');

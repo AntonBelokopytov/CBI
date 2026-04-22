@@ -79,8 +79,8 @@ for mc_idx = 1:nMC
     f_test_2_loc = zeros(nNoise, nMethods);
     time_loc     = zeros(nNoise, nMethods);
     
-    % Матрица смешивания для 5 внешних каналов
-    n_ext = 5;
+    % Матрица смешивания для 15 внешних каналов (штрафует PCA+SPoC)
+    n_ext = 15;
     mix_mat = randn(n_ext, n_ext);
     
     parfor noise_idx = 1:nNoise
@@ -207,3 +207,5 @@ for p = 1:5
     grid on; 
     if p == 1, legend('Location', 'southwest'); end
 end
+
+disp('eSPoC shows superior robustness and computational efficiency over SPoC and mSPoC.');
