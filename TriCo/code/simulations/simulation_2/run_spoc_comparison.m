@@ -23,7 +23,7 @@ Ts = 850;
 Fs = 250;
 Ws = 1;
 Ss = 1;
-nMC = 100; 
+nMC = 50; 
   
 SNR_range = 10.^(-1.4 : 0.2 : 1); 
 nSNR = length(SNR_range);

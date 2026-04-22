@@ -94,7 +94,8 @@ X_filt_cond = X_filt(:,:,idxs);
 
 pos = Xinf.elec.chanpos; 
 Dists = pdist2(pos, pos); 
-[W, A, corrs] = espoc_laplace(X_eps, mean(z_eps,1), Dists);
+% [W, A, corrs] = espoc_laplace(X_eps, mean(z_eps,1), Dists);
+[W, A, corrs] = espoc(X_eps, mean(z_eps,1));
 
 figure;
 stem(corrs')
@@ -118,7 +119,7 @@ for w_i = 1:size(W,2)
     corrs(w_i) = corr(Env',mean(z_eps,1)');
 end
 
-figure
+% figure
 stem(corrs)
 
 legend('eSPoC', 'SPoC')

@@ -9,11 +9,16 @@ opt= set_defaults(opt, ...
 
 Z = (Z - mean(Z,2)) ./ std(Z,[],2);
 
-% ---
-[Feat, Wm, Cxx, Epochs_cov, ~] = get_white_covariance_series(X_epochs, opt);
-Cff = cov(Feat');
+% Xraw = [];
+% for i=1:size(X_epochs,3)
+%     Xraw = [Xraw,X_epochs(:,:,i)'];
+% end
+% Xraw = Xraw - mean(Xraw,2);
 
+% ---
+[Feat, Cxx, Epochs_cov] = get_covariance_series(X_epochs);
 [Featdr, Uf] = project_to_pc(Feat, opt.X_min_var_explained);
+Cff = cov(Feat');
 
 if strcmp(opt.cca_mode, 'regularized')
     [Vfdr, Vz] = cca(Featdr', Z', opt);
@@ -31,8 +36,8 @@ Afw = Cff * Vfw;
 % plot(Z)
 
 % Project and normalize EEG/MEG filters
-for global_src_idx=1:size(Afw,2)
-    [w, a, s] = project_to_manifold(Afw(:,global_src_idx), Wm, Cxx, opt, 1);
+for global_src_idx=1:size(Vfw,2)
+    [w, a, s] = project_to_manifold(Vfw(:,global_src_idx), Afw(:,global_src_idx), Cxx);
     
     % Project target variable to its CCA component 
     Zpr = Vz(:,global_src_idx)'*Z;
@@ -94,7 +99,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [F, Wm, Cxx, Epochs_cov, Epochs_covW] = get_white_covariance_series(X_epochs, opt)
+function [F, Cxx, Epochs_cov] = get_covariance_series(X_epochs)
 
 % Function to get upper triangular covarience time series in dimension
 % reduced space
@@ -109,67 +114,42 @@ for ep_idx = 1:n_epochs
 end
 % Mean covariance matrix
 Cxx = mean(Epochs_cov,3);
-
-% Whitening matrix
-Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
-Cxx_r = (Cxx_r + Cxx_r') / 2; 
-% iWm = sqrtm(Cxx_r);    
-% Wm = eye(n_channels) / iWm;
-% Wm = eye(n_channels) / iWm;
-Wm = eye(n_channels);
+Wm = eye(size(Cxx,1)) / sqrtm(regularize(Cxx));
 
 % Whightened covariance series (upper triangular parts)
-Epochs_covW = zeros(n_channels,n_channels,n_epochs);
 F = zeros(n_features,n_epochs);
 for ep_idx = 1:n_epochs
-    XcovW = Wm * Epochs_cov(:,:,ep_idx) * Wm';
-    Epochs_covW(:,:,ep_idx) = XcovW;
-    F(:, ep_idx) = cov2upper(XcovW);
+    Xcov = Epochs_cov(:,:,ep_idx);
+    F(:, ep_idx) = cov2upper(Xcov);
 end
 
 F = F - mean(F,2);
+
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function [X_proj, U] = project_to_pc(X, min_var_explained)
-% PROJECT_TO_PC  PCA projection with variance threshold.
-%
-%   [X_proj, U] = project_to_pc(X, min_var_explained)
-%
-%   INPUT:
-%       X  - data matrix [D x N]
-%       min_var_explained - fraction of variance to retain (0–1)
-%
-%   OUTPUT:
-%       X_proj - projected data
-%       U      - retained principal directions
 
-% Center data (important for PCA!)
 X = X - mean(X,2);
 
-% Economy SVD
 [U,S,~] = svd(X,"econ");
 
 S = diag(S);
 
-% Numerical rank
 tol_rank = max(size(X)) * eps(S(1));
 r = sum(S > tol_rank);
 
-% Variance explained
 ve = S.^2;
 var_explained = cumsum(ve) / sum(ve);
 var_explained(end) = 1;
 
-% Select number of components
 tol = 1e-12;
 n_components = find(var_explained >= min_var_explained - tol, 1);
 if isempty(n_components)
     n_components = r;
 end
 
-% Truncate basis
 U = U(:,1:n_components);
 
 % Project
@@ -214,15 +194,20 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)    
-    Cxx_r = Cxx+opt.whitening_reg*eye(size(Cxx))*trace(Cxx)/size(Cxx,1);
-    Cxx_r = (Cxx_r + Cxx_r') / 2; 
-
-    WW = upper2cov(V);
-    W_proj = WW;
-    W_proj = (W_proj + W_proj') / 2;
+function [W, A, s] = project_to_manifold(Vf,Af,Cxx)    
+    Cxx_r = regularize(Cxx);
     
-    [Uw, S] = eig(W_proj, Cxx_r);
+    WW = upper2cov(Vf);
+    WW = (WW + WW') / 2;
+
+    AA = upper2cov(Af);
+    AA = (AA + AA') / 2;
+    
+    [Uw, S] = eig(AA, Cxx_r);    
+    % [Uw, S] = eig(WW);    
+
+    % Wm = eye(size(Cxx,1)) / sqrtm(regularize(Cxx));
+
     [s, idxs] = sort(diag(S),'descend');
     Uw = Uw(:,idxs);
     
@@ -232,11 +217,19 @@ function [W, A, s] = project_to_manifold(V, Wm, Cxx, opt, min_var_explained)
     A = zeros(n_channels, n_local_src);
     
     for local_src_idx = 1:n_local_src
-        wi = Wm' * Uw(:, local_src_idx); 
+        wi = Uw(:, local_src_idx); 
+        
         Wprn = wi / sqrt(wi' * Cxx * wi);
+        
         W(:, local_src_idx) = Wprn;
         A(:, local_src_idx) = Cxx_r * Wprn; 
     end
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function C_r = regularize(C)    
+    C_r = C + 10e-5 * eye(size(C)) * trace(C)/size(C,1);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
+ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip';
 if ~exist('ft_defaults','file')
     addpath(ft_path);
 end
@@ -16,14 +16,14 @@ lay = ft_prepare_layout(laycfg);
 G = load('D:\OS(CURRENT)\data\simulation_support_data\eeg\MNE_EEG_FWD_TRPL.mat').MNE_EEG_FWD_TRPL;
 
 %% =================== ПАРАМЕТРЫ СИМУЛЯЦИИ ===================
-Nsrc = 90;     
+Nsrc = 50;     
 Ndistr = 1;
 flanker = 1;
-Ts = 1000;      
+Ts = 100; Ntr = 50;      
 Fs = 250;
 Ws = 1;
 Ss = 1;
-nMC = 200; 
+nMC = 50; 
 fixed_eeg_snr = 10^0.4; 
 corr_range = linspace(0.1, 0.99, 12); 
 nCorrLevels = length(corr_range);
@@ -47,8 +47,8 @@ for mc_idx = 1:nMC
     X = fixed_eeg_snr * X_s + X_bg + 0.1 * X_n / norm(X_s,'fro');
     X_epo = epoch_data(X', Fs, Ws, Ss);
     
-    X_epo_train = X_epo(:,:,1:500);
-    X_epo_test  = X_epo(:,:,501:end);
+    X_epo_train = X_epo(:,:,1:Ntr);
+    X_epo_test  = X_epo(:,:,Ntr+1:end);
     
     nTrain = size(X_epo_train, 3);
     nTest  = size(X_epo_test, 3);
@@ -71,10 +71,10 @@ for mc_idx = 1:nMC
     z_epo = (z_epo - mean(z_epo)) / std(z_epo);
     
     % Строго стандартизируем трейн и тест независимо 
-    z_train = z_epo(1:500);
+    z_train = z_epo(1:Ntr);
     z_train = (z_train - mean(z_train)) / std(z_train);
     
-    z_test  = z_epo(501:end);
+    z_test  = z_epo(Ntr+1:end);
     z_test  = (z_test - mean(z_test)) / std(z_test);
     
     % Локальные переменные для parfor
@@ -160,7 +160,7 @@ mean_p     = get_mean(patcorr);             ci_p     = get_ci(patcorr);
 
 % Отрисовка
 figure('Position', [50 50 1600 800], 'Color', 'w'); 
-colors = [0.8 0 0; 0 0.7 0]; % Красный eSPoC, Зеленый SPoC
+colors = [0.8 0 0; 0 0.7 0]; 
 
 % Академичные заголовки для статьи
 titles = {
