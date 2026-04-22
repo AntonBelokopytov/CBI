@@ -114,7 +114,7 @@ for ep_idx = 1:n_epochs
 end
 % Mean covariance matrix
 Cxx = mean(Epochs_cov,3);
-Wm = eye(size(Cxx,1)) / sqrtm(regularize(Cxx));
+% Wm = eye(size(Cxx,1)) / sqrtm(regularize(Cxx));
 
 % Whightened covariance series (upper triangular parts)
 F = zeros(n_features,n_epochs);
@@ -208,7 +208,7 @@ function [W, A, s] = project_to_manifold(Vf,Af,Cxx)
 
     % Wm = eye(size(Cxx,1)) / sqrtm(regularize(Cxx));
 
-    [s, idxs] = sort(diag(S),'descend');
+    [s, idxs] = sort(diag(abs(S)),'descend');
     Uw = Uw(:,idxs);
     
     n_channels = size(Cxx, 1);

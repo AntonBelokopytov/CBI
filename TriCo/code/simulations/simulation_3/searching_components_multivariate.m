@@ -1,13 +1,11 @@
 close all
 clear
 clc
-
 ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip';
 if ~exist('ft_defaults','file')
     addpath(ft_path);
 end
 ft_defaults;
-
 %% Загрузка данных
 elec = load("D:\OS(CURRENT)\data\simulation_support_data\eeg\elec.mat").elec;
 laycfg = [];
@@ -20,88 +18,78 @@ Nsrc = 50;
 Ndistr = 2; 
 flanker = 1;
 Ts = 850; Ntr = 250;      
-Fs = 250;
-Ws = 1;
-Ss = 1;
+Fs = 250; Ws = 1; Ss = 1;
 nMC = 10; 
 
-fixed_eeg_snr = 10^0.4; 
-noise_range = logspace(-1, 2, 8); 
-nNoise = length(noise_range);
+% ТЕПЕРЬ МЫ ВАРЬИРУЕМ SNR ЭЭГ (от очень слабого сигнала до сильного)
+snr_range = logspace(-1.5, 0.5, 8); 
+nSNR = length(snr_range);
+fixed_target_noise = 1.0; % Умеренно шумный многомерный таргет
 
 labels = {'eSPoC', 'mSPoC', 'PCA + SPoC'};
 nMethods = length(labels);
 
 % Массивы для метрик
-patcorr_1 = zeros(nMC, nNoise, nMethods); 
-patcorr_2 = zeros(nMC, nNoise, nMethods); 
-filcorr_test_1 = zeros(nMC, nNoise, nMethods); 
-filcorr_test_2 = zeros(nMC, nNoise, nMethods); 
-time_comp = zeros(nMC, nNoise, nMethods); 
+patcorr_1 = zeros(nMC, nSNR, nMethods); 
+patcorr_2 = zeros(nMC, nSNR, nMethods); 
+filcorr_test_1 = zeros(nMC, nSNR, nMethods); 
+filcorr_test_2 = zeros(nMC, nSNR, nMethods); 
+time_comp = zeros(nMC, nSNR, nMethods); 
 
 for mc_idx = 1:nMC
     fprintf('Monte-Carlo iteration: %d / %d\n', mc_idx, nMC);
     
-    % Генерируем источники
+    % Генерируем источники (не зависят от SNR)
     [X_s, X_bg, X_n, z, GA, S] = generate_distributed_sources(G, Nsrc, Ndistr, flanker, Ts, Fs);
-    Ainit = GA(:, 1:2); % Истинные паттерны 2-х целевых источников
+    Ainit = GA(:, 1:2); 
     
-    % Генерируем ЭЭГ
-    X = fixed_eeg_snr * X_s + X_bg + 0.1 * X_n / norm(X_s,'fro');
-    X_epo = epoch_data(X', Fs, Ws, Ss);
-    
-    X_epo_train = X_epo(:,:,1:Ntr);
-    X_epo_test  = X_epo(:,:,Ntr+1:end);
-    nTrain = size(X_epo_train, 3);
-    nTest  = size(X_epo_test, 3);
-    nChan  = size(X_epo_train, 2);
-    
-    % Ковариации для оценки огибающей
-    Covs_train = zeros(nChan, nChan, nTrain);
-    for ep_idx = 1:nTrain, Covs_train(:,:,ep_idx) = cov(X_epo_train(:,:,ep_idx)); end
-    Covs_test = zeros(nChan, nChan, nTest);
-    for ep_idx = 1:nTest, Covs_test(:,:,ep_idx) = cov(X_epo_test(:,:,ep_idx)); end
-    
-    % Истинные огибающие (2 штуки)
+    % Истинные огибающие
     z_epo_raw = epoch_data(z(1:2,:)', Fs, Ws, Ss); 
     z_epo = squeeze(mean(z_epo_raw, 1))';         
-    
-    z_train = z_epo(1:Ntr, :); % Размер [Ntr x 2]
+    z_train = z_epo(1:Ntr, :); 
     z_train = (z_train - mean(z_train, 1)) ./ std(z_train, 0, 1);
-    
-    z_test = z_epo(Ntr+1:end, :); % Размер [NTest x 2]
+    z_test = z_epo(Ntr+1:end, :);
     z_test = (z_test - mean(z_test, 1)) ./ std(z_test, 0, 1);
     
-    % Локальные переменные
-    p_corr_1_loc = zeros(nNoise, nMethods);
-    p_corr_2_loc = zeros(nNoise, nMethods);
-    f_test_1_loc = zeros(nNoise, nMethods);
-    f_test_2_loc = zeros(nNoise, nMethods);
-    time_loc     = zeros(nNoise, nMethods);
+    nTrain = size(z_train, 1);
+    nTest  = size(z_test, 1);
     
-    % Матрица смешивания для 5 внешних каналов
+    % Локальные переменные для parfor
+    p_corr_1_loc = zeros(nSNR, nMethods);
+    p_corr_2_loc = zeros(nSNR, nMethods);
+    f_test_1_loc = zeros(nSNR, nMethods);
+    f_test_2_loc = zeros(nSNR, nMethods);
+    time_loc     = zeros(nSNR, nMethods);
+    
     n_ext = 5;
     mix_mat = randn(n_ext, n_ext);
     
-    parfor noise_idx = 1:nNoise
-        current_noise = noise_range(noise_idx);
+    Z_multi_train = zeros(nTrain, n_ext);
+    Z_multi_train(:, 1:2) = z_train;
+    for d = 3:n_ext
+        nd = randn(nTrain, 1);
+        nd = nd - z_train(:,1)*(z_train(:,1)'*nd)/(z_train(:,1)'*z_train(:,1)) ...
+                - z_train(:,2)*(z_train(:,2)'*nd)/(z_train(:,2)'*z_train(:,2));
+        Z_multi_train(:, d) = (nd - mean(nd)) / std(nd) * fixed_target_noise;
+    end
+    Z_noisy_train_multi = (mix_mat * Z_multi_train')';
+    
+    % PCA для SPoC
+    [~, score_tr] = pca(Z_noisy_train_multi);
+    z_spoc_train = score_tr(:, 1:2);
+    
+    parfor snr_idx = 1:nSNR
+        current_snr = snr_range(snr_idx);
         
-        % Создаем многомерную внешнюю переменную (5D)
-        Z_multi_train = zeros(nTrain, n_ext);
-        Z_multi_train(:, 1:2) = z_train; % Первые 2 измерения - чистые сигналы
+        X = current_snr * X_s + X_bg + 0.1 * X_n / norm(X_s,'fro');
+        X_epo = epoch_data(X', Fs, Ws, Ss);
         
-        % Остальные 3 измерения - ортогональный шум
-        for d = 3:n_ext
-            nd = randn(nTrain, 1);
-            nd = nd - z_train(:,1)*(z_train(:,1)'*nd)/(z_train(:,1)'*z_train(:,1)) ...
-                    - z_train(:,2)*(z_train(:,2)'*nd)/(z_train(:,2)'*z_train(:,2));
-            Z_multi_train(:, d) = (nd - mean(nd)) / std(nd) * current_noise;
-        end
-        Z_noisy_train_multi = (mix_mat * Z_multi_train')'; % [nTrain x 5]
+        X_epo_train = X_epo(:,:,1:Ntr);
+        X_epo_test  = X_epo(:,:,Ntr+1:end);
+        nChan  = size(X_epo_train, 2);
         
-        % PCA для SPoC
-        [~, score_tr] = pca(Z_noisy_train_multi);
-        z_spoc_train = score_tr(:, 1:2);
+        Covs_test = zeros(nChan, nChan, nTest);
+        for ep_idx = 1:nTest, Covs_test(:,:,ep_idx) = cov(X_epo_test(:,:,ep_idx)); end
         
         A_est = cell(1, nMethods);
         W_est = cell(1, nMethods);
@@ -109,14 +97,14 @@ for mc_idx = 1:nMC
         
         % ================= 1. eSPoC =================
         tic;
-        [W_e, A_e] = espoc(X_epo_train, Z_noisy_train_multi');
+        [W_e, A_e] = espoc(X_epo_train, Z_noisy_train_multi', 'X_min_var_explained', 0.90);
         A_est{1} = squeeze(A_e(1, :, 1:2)); 
         W_est{1} = squeeze(W_e(1, :, 1:2)); 
         t_elapsed(1) = toc;
         
         % ================= 2. mSPoC =================
         tic;
-        mspoc_opts = struct('tau_vector', 0, 'n_component_sets', 2, 'n_random_initializations', 5, 'verbose', 0);
+        mspoc_opts = struct('n_component_sets', 2, 'verbose', 0);
         [W_m, ~, ~, A_m, ~] = mspoc(X_epo_train, Z_noisy_train_multi', mspoc_opts);
         t_elapsed(2) = toc;
         A_est{2} = A_m(:, 1:2);
@@ -132,12 +120,10 @@ for mc_idx = 1:nMC
         
         % Оценка качества
         for m_idx = 1:nMethods
-            % 1. Корреляция паттернов (Истинная физиология)
-            C_A = abs(corr(A_est{m_idx}, Ainit)); % Матрица 2x2
-            p_corr_1_loc(noise_idx, m_idx) = max(C_A(:, 1));
-            p_corr_2_loc(noise_idx, m_idx) = max(C_A(:, 2));
+            C_A = abs(corr(A_est{m_idx}, Ainit)); 
+            p_corr_1_loc(snr_idx, m_idx) = max(C_A(:, 1));
+            p_corr_2_loc(snr_idx, m_idx) = max(C_A(:, 2));
             
-            % 2. ПРОВЕРКА НА ТЕСТЕ (Обобщающая способность)
             W_curr = W_est{m_idx};
             env_test_1 = zeros(nTest, 1);
             env_test_2 = zeros(nTest, 1);
@@ -146,12 +132,11 @@ for mc_idx = 1:nMC
                 env_test_2(ep_idx) = W_curr(:,2)' * Covs_test(:,:,ep_idx) * W_curr(:,2);
             end
             
-            % Корреляция с истинным чистым таргетом z_test
             C_env = abs(corr([env_test_1, env_test_2], z_test));
-            f_test_1_loc(noise_idx, m_idx) = max(C_env(:, 1));
-            f_test_2_loc(noise_idx, m_idx) = max(C_env(:, 2));
+            f_test_1_loc(snr_idx, m_idx) = max(C_env(:, 1));
+            f_test_2_loc(snr_idx, m_idx) = max(C_env(:, 2));
             
-            time_loc(noise_idx, m_idx) = t_elapsed(m_idx);
+            time_loc(snr_idx, m_idx) = t_elapsed(m_idx);
         end
     end
     
@@ -163,7 +148,6 @@ for mc_idx = 1:nMC
 end
 
 %% Отрисовка результатов
-% Расчет средних и доверительных интервалов
 get_mean = @(arr) squeeze(mean(arr, 1));
 get_ci   = @(arr) squeeze(1.96 * std(arr, 0, 1) / sqrt(nMC));
 
@@ -173,10 +157,9 @@ mf1 = get_mean(filcorr_test_1); cf1 = get_ci(filcorr_test_1);
 mf2 = get_mean(filcorr_test_2); cf2 = get_ci(filcorr_test_2);
 mt  = get_mean(time_comp);
 
-x = noise_range; 
+x = snr_range; 
 figure('Position', [50 50 1600 800], 'Color', 'w'); 
 colors = [0.8 0 0; 0 0.5 1; 0 0.7 0]; % Красный(eSPoC), Синий(mSPoC), Зеленый(PCA+SPoC)
-
 titles = {'Recovery of Pattern 1', 'Recovery of Pattern 2', 'Computational Time', ...
           'Test Data: Power Corr (Net 1)', 'Test Data: Power Corr (Net 2)'};
 y_data = {mp1, mp2, mt, mf1, mf2};
@@ -186,7 +169,7 @@ for p = 1:5
     subplot(2, 3, p); hold on;
     for m = 1:nMethods
         y = y_data{p}(:,m)'; 
-        if p ~= 3 % Рисуем CI для всех, кроме графика времени
+        if p ~= 3 
             ci = ci_data{p}(:,m)';
             fill([x fliplr(x)], [y-ci fliplr(y+ci)], colors(m,:), 'FaceAlpha', 0.15, 'EdgeColor', 'none', 'HandleVisibility', 'off');   
         end
@@ -194,7 +177,7 @@ for p = 1:5
     end
     
     title(titles{p}, 'FontSize', 12);
-    xlabel('Orthogonal Noise Variance in Target'); 
+    xlabel('EEG Target Source SNR'); 
     
     if p == 3
         ylabel('Time (seconds)');
@@ -205,5 +188,5 @@ for p = 1:5
         set(gca, 'XScale', 'log');
     end
     grid on; 
-    if p == 1, legend('Location', 'southwest'); end
+    if p == 1, legend('Location', 'southeast'); end
 end
