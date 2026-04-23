@@ -1,4 +1,4 @@
-function [W, A, corrs] = espoc(X_epochs, Z, varargin)
+function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc(X_epochs, Z, varargin)
 
 opt= propertylist2struct(varargin{:});
 opt= set_defaults(opt, ...
@@ -18,16 +18,16 @@ Z = (Z - mean(Z,2)) ./ std(Z,[],2);
 % ---
 [Feat, Cxx, Epochs_cov] = get_covariance_series(X_epochs);
 [Featdr, Uf] = project_to_pc(Feat, opt.X_min_var_explained);
-Cff = cov(Feat');
+Cff = cov(Featdr');
 
 if strcmp(opt.cca_mode, 'regularized')
-    [Vfdr, Vz] = cca(Featdr', Z', opt);
+    [Vfdr, Vz, corrs_in_ex] = cca(Featdr', Z', opt);
 elseif strcmp(opt.cca_mode, 'standard') 
     [Vfdr, Vz] = canoncorr(Featdr', Z');
 end
 % Return found filters from dimension reduced space 
-Vfw = Uf * Vfdr;
-Afw = Cff * Vfw;
+Vf = Uf * Vfdr;
+Af = Uf * Cff * Vfdr;
 
 % en = Vfw' * Feat;
 % en = (en - mean(en)) / std(en);
@@ -36,11 +36,12 @@ Afw = Cff * Vfw;
 % plot(Z)
 
 % Project and normalize EEG/MEG filters
-for global_src_idx=1:size(Vfw,2)
-    [w, a, s] = project_to_manifold(Vfw(:,global_src_idx), Afw(:,global_src_idx), Cxx);
+for global_src_idx=1:size(Vf,2)
+    [w, a, s] = project_to_manifold(Vf(:,global_src_idx), Af(:,global_src_idx), Cxx);
     
     % Project target variable to its CCA component 
-    Zpr = Vz(:,global_src_idx)'*Z;
+    Zpr_in(global_src_idx,:) = Vf(:,global_src_idx)'*Feat;
+    Zpr_ex(global_src_idx,:) = Vz(:,global_src_idx)'*Z;
     
     % Find correlation of the filters
     Env = [];
@@ -48,20 +49,23 @@ for global_src_idx=1:size(Vfw,2)
         for ep_idx=1:size(Epochs_cov,3)
             Env(ep_idx) = w(:,local_src_idx)' * Epochs_cov(:,:,ep_idx) * w(:,local_src_idx);
         end
-        cr(local_src_idx)=corr(Env',Zpr');
+        cr_in(local_src_idx)=corr(Env',Zpr_in(global_src_idx,:)');
+        cr_ex(local_src_idx)=corr(Env',Zpr_ex(global_src_idx,:)');
     end
     % [cr,idx] = sort(cr,'descend');
     % w = w(:,idx);
     % a = a(:,idx);
     
     eigenvalues(global_src_idx,:) = s;
-    corrs(global_src_idx,:) = cr;
+    corrs_in(global_src_idx,:) = cr_in;
+    corrs_ex(global_src_idx,:) = cr_ex;
     W(global_src_idx,:,:) = w;
     A(global_src_idx,:,:) = a;
 end
 
 if size(W,1)==1
-    corrs = squeeze(corrs);
+    corrs_in = squeeze(corrs_in);
+    corrs_ex = squeeze(corrs_ex);
     W = squeeze(W);
     A = squeeze(A);
 end
@@ -159,7 +163,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [Vx, Vy, Cxx, Cyy] = cca(X, Y, opt)
+function [Vx, Vy, S] = cca(X, Y, opt)
 
 % Regularized CCA
 
@@ -185,7 +189,7 @@ Rx = chol(Sxx_r,'upper');
 Ry = chol(Syy_r,'upper');
 
 K = Rx' \ (Cxy / Ry);            
-[Ux,~,Uy] = svd(K,'econ');
+[Ux,S,Uy] = svd(K,'econ');
 
 Vx = Rx \ Ux; 
 Vy = Ry \ Uy; 
@@ -203,12 +207,14 @@ function [W, A, s] = project_to_manifold(Vf,Af,Cxx)
     AA = upper2cov(Af);
     AA = (AA + AA') / 2;
     
-    [Uw, S] = eig(AA, Cxx_r);    
-    % [Uw, S] = eig(WW);    
+    % num = Cxx * WW * Cxx;
+    num = AA;
+    den = Cxx_r;
+    [Uw, S] = eig(num, den);    
 
     % Wm = eye(size(Cxx,1)) / sqrtm(regularize(Cxx));
 
-    [s, idxs] = sort(diag(abs(S)),'descend');
+    [s, idxs] = sort(diag(S),'descend');
     Uw = Uw(:,idxs);
     
     n_channels = size(Cxx, 1);

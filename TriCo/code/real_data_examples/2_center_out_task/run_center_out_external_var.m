@@ -48,6 +48,8 @@ fmin = 9;
 fmax = 14;
 Ws = 1/fmin;   
 Ss = Ws/2; 
+% Ws = 1;   
+% Ss = 1; 
 
 [b_band, a_band] = butter(4, [fmin fmax] / (Fs/2), 'bandpass');
 
@@ -94,12 +96,16 @@ X_filt_cond = X_filt(:,:,idxs);
 
 pos = Xinf.elec.chanpos; 
 Dists = pdist2(pos, pos); 
+
+ex_variable = mean(z_eps,1);
 % [W, A, corrs] = espoc_laplace(X_eps, mean(z_eps,1), Dists);
-[W, A, corrs] = espoc(X_eps, mean(z_eps,1));
+% [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc(X_eps, ex_variable);
+[W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc_grad(X_eps, ex_variable);
 
 figure;
-stem(corrs')
+stem(corrs_in')
 hold on
+stem(corrs_ex')
 
 %%
 Epochs_cov = [];
@@ -108,21 +114,47 @@ for ep_idx = 1:size(X_eps,3)
     Epochs_cov(:,:,ep_idx) = Xcov;
 end
 
-[W,A] = spoc(X_eps,mean(z_eps,1));
+[W,A] = spoc(X_eps,ex_variable);
 
-corrs = [];
+corrs_sp_in = [];
+corrs_sp_ex = [];
 for w_i = 1:size(W,2)
     Env = [];
     for ep_i = 1:size(X_eps,3)
         Env(ep_i) = W(:,w_i)' * Epochs_cov(:,:,ep_i) * W(:,w_i);
     end
-    corrs(w_i) = corr(Env',mean(z_eps,1)');
+    corrs_sp_in(w_i) = corr(Env',Zpr_in');
+    corrs_sp_ex(w_i) = corr(Env',ex_variable');
 end
 
-% figure
-stem(corrs)
+stem(corrs_sp_in)
+stem(corrs_sp_ex)
+legend('eSPoC_{in}', 'eSPoC_{ex}', 'SPoC_{in}', 'SPoC_{ex}')
 
-legend('eSPoC', 'SPoC')
+%%
+figure('Color', 'w', 'Position', [100 100 1000 400]);
+
+% --- График 1: eSPoC ---
+subplot(1, 2, 1);
+hold on;
+stem(abs(corrs_in), 'Filled', 'Color', [0 0.6 0], 'MarkerFaceColor', [0 0.6 0], 'LineWidth', 1.5);
+stem(abs(corrs_ex), 'Color', [0.5 0.8 0.5], 'LineWidth', 1.5, 'LineStyle', '--');
+title('Компоненты eSPoC');
+xlabel('Индекс компоненты');
+ylabel('Абсолютная корреляция |r|');
+legend('Внутренняя', 'Внешняя');
+grid on;
+
+% --- График 2: SPoC ---
+subplot(1, 2, 2);
+hold on;
+% Для SPoC "родной" таргет - это внешний, рисуем его залитым
+stem(abs(corrs_sp_ex), 'Filled', 'Color', [0.8 0 0], 'MarkerFaceColor', [0.8 0 0], 'LineWidth', 1.5);
+stem(abs(corrs_sp_in), 'Color', [0.8 0.5 0.5], 'LineWidth', 1.5, 'LineStyle', '--');
+title('Компоненты SPoC');
+xlabel('Индекс компоненты');
+legend('Внешняя', 'Внутренняя');
+grid on;
 
 %%
 % pos_3d = Xinf.elec.chanpos(1:38, :); 
@@ -148,7 +180,7 @@ legend('eSPoC', 'SPoC')
 
 %%
 src_idx = 1;
-comp_idx = 1;
+comp_idx = 33;
 
 % wx = W(src_idx,:,comp_idx)';
 % ax = A(src_idx,:,comp_idx);
