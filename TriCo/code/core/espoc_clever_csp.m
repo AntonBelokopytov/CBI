@@ -1,4 +1,4 @@
-function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc_grad(X_epochs, Z, varargin)
+function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc_clever_csp(X_epochs, Z, varargin)
     opt= propertylist2struct(varargin{:});
     opt= set_defaults(opt, ...
                       'X_min_var_explained', 1, ...
@@ -26,7 +26,7 @@ function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc_grad(X_
         Zpr_in(global_src_idx,:) = z_in_current;
         Zpr_ex(global_src_idx,:) = Vz(:,global_src_idx)' * Z;
         
-        [w, a, s] = project_to_tangent_space(z_in_current, Epochs_cov, Cxx);
+        [w, a, s] = project_to_tangent_space(z_in_current, Epochs_cov, Cxx, opt);
         
         Env = zeros(1, size(Epochs_cov,3));
         for local_src_idx = 1:size(w,2)
@@ -53,148 +53,101 @@ function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc_grad(X_
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% ФУНКЦИЯ ОПТИМИЗАЦИИ В КАСАТЕЛЬНОМ ПРОСТРАНСТВЕ (TANGENT SPOC)
+% ФУНКЦИЯ ОПТИМИЗАЦИИ: TANGENT CCA + HAUFE PATTERN -> MANIFOLD CSP
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [W, A, s] = project_to_tangent_space(Z_in, Epochs_cov, Cxx)    
-    % Z_in: целевая переменная (ожидается центрированной!), [1 x n_epochs]
+function [W, A, s] = project_to_tangent_space(Z_in, Epochs_cov, Cxx, opt)    
+    % Z_in: целевая переменная (уже очищенная eSPoC), [1 x n_epochs]
     % Epochs_cov: исходные ковариации [n_channels x n_channels x n_epochs]
-    % Cxx: средняя ковариационная матрица (глобальная референсная точка)
     
     [n_chan, ~, n_epochs] = size(Epochs_cov);
-    
     for i = 1:n_epochs
         Epochs_cov(:,:,i) = regularize(Epochs_cov(:,:,i));
     end
-
-    Z_in = Z_in - mean(Z_in);
     
+    % 1. Центрируем таргет и разделяем индексы
+    Z_in = Z_in - mean(Z_in);
+
+    idx_pos = find(Z_in > 0);
+    idx_neg = find(Z_in < 0);
+    
+    Z_pos = Z_in(idx_pos);
+    Z_neg = -Z_in(idx_neg); % берем по модулю для корректной ковариации
+    
+    % 2. Бейзлайн (референсная точка)
     perc_baseline = 0.2; 
     n_base = max(1, round(n_epochs * perc_baseline));
     [~, sort_idx] = sort(abs(Z_in), 'ascend');
-    base_idxs = sort_idx(1:n_base);
+    Cref = mean(Epochs_cov(:,:,sort_idx(1:n_base)), 3);
     
-    % C_ref = riemann_mean(Epochs_cov(:,:,base_idxs));
-    Cmin = mean(Epochs_cov(:,:,base_idxs),3);
-    Cmin = regularize(Cmin);   
+    % Подготовка матриц
+    [V_cxx, D_cxx] = eig(regularize(Cref));
+    d_cxx = diag(D_cxx);
+    Cxx_inv_half = V_cxx * diag(1 ./ sqrt(d_cxx)) * V_cxx';
+    Cxx_half     = V_cxx * diag(sqrt(d_cxx)) * V_cxx';
     
-    perc_baseline = 0.2; 
-    n_base = max(1, round(n_epochs * perc_baseline));
-    [~, sort_idx] = sort(abs(Z_in), 'descend');
-    base_idxs = sort_idx(1:n_base);
-    Cmax = mean(Epochs_cov(:,:,base_idxs),3);
-
-    [V_cxx, D_cxx] = eig(regularize(Cmin));
-    Cxx_inv_half = V_cxx * diag(1 ./ sqrt(diag(D_cxx))) * V_cxx';
-    
-    A_target = zeros(n_chan, n_chan);
+    % 3. Проецируем в касательное пространство и векторизуем
+    n_features = (n_chan^2 - n_chan)/2 + n_chan;
+    S_vec = zeros(n_features, n_epochs);
     
     for i = 1:n_epochs
-        C_i = Epochs_cov(:,:,i);
-        C_i = (C_i + C_i') / 2; 
-        
+        C_i = (Epochs_cov(:,:,i) + Epochs_cov(:,:,i)') / 2; 
         C_rel = Cxx_inv_half * C_i * Cxx_inv_half;
         C_rel = (C_rel + C_rel') / 2; 
         
-        [V_rel, D_rel] = eig(C_rel);
-        d_rel = diag(D_rel);
-        d_rel(d_rel < eps) = eps;
+        [V_rel, D_rel] = eig(regularize(C_rel));
+        d_rel = diag(D_rel); d_rel(d_rel < eps) = eps;
+        
+        % Риманов логарифм (матрица в касательном пространстве)
         S_i = V_rel * diag(log(d_rel)) * V_rel';
         
-        A_target = A_target + Z_in(i) * S_i;
+        % Векторизация (чтобы подать в CCA и cov)
+        S_vec(:, i) = cov2upper(S_i);
     end
     
-    A_target = A_target / n_epochs;
-    A_target = (A_target + A_target') / 2;
+    % 4. РАЗДЕЛЕНИЕ НА ПОЛЮСА
+    S_pos = S_vec(:, idx_pos);
+    S_neg = S_vec(:, idx_neg);
     
-    [U, S] = eig(A_target);    
+    % 5. TANGENT CCA (Поиск направлений корреляции внутри касательного пространства)
+    % Используем регуляризованный CCA для предотвращения переобучения на малых выборках
+    [V_pos, ~] = cca(S_pos', Z_pos', opt); 
+    [V_neg, ~] = cca(S_neg', Z_neg', opt);
+    
+    % 6. ПРАВИЛО ХАУФЕ В КАСАТЕЛЬНОМ ПРОСТРАНСТВЕ (Ваша идея!)
+    % A = cov(X) * W
+    A_pos_vec = cov(S_pos') * V_pos(:, 1);
+    A_neg_vec = cov(S_neg') * V_neg(:, 1);
+    
+    % Девекторизуем обратно в квадратные симметричные матрицы
+    A_pos = upper2cov(A_pos_vec);
+    A_neg = upper2cov(A_neg_vec);
+    
+    A_pos = (A_pos + A_pos') / 2;
+    A_neg = (A_neg + A_neg') / 2;
+    
+    % 7. Возврат на физическое многообразие (expm)
+    C_pos = Cxx_half * expm(A_pos) * Cxx_half;
+    C_pos = (C_pos + C_pos') / 2;
+    
+    C_neg = Cxx_half * expm(A_neg) * Cxx_half;
+    C_neg = (C_neg + C_neg') / 2;
+    
+    % 8. Классический CSP: Контраст паттерна активации и паттерна дезактивации
+    [Uw, S] = eig(C_pos, regularize(C_neg));    
     [s, idxs] = sort(diag(S), 'descend');
-    Uw = U(:, idxs);
+    Uw = Uw(:, idxs);
     
     W = zeros(n_chan, n_chan);
     A = zeros(n_chan, n_chan);
     
     for local_src_idx = 1:n_chan
-        wi = Cxx_inv_half * Uw(:, local_src_idx); 
-        
-        Wprn = wi / sqrt(wi' * Cmin * wi);
+        wi = Uw(:, local_src_idx); 
+        Wprn = wi / sqrt(wi' * Cxx * wi); 
         
         W(:, local_src_idx) = Wprn;
-        A(:, local_src_idx) = Cmax * Wprn; 
+        A(:, local_src_idx) = Cxx * Wprn; 
     end
 end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% ФУНКЦИЯ ВЫЧИСЛЕНИЯ РИМАНОВА СРЕДНЕГО (Karcher Mean)
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function M = riemann_mean(Covs, tol, max_iter)
-    % Covs: 3D массив ковариационных матриц [n_chan x n_chan x n_epochs]
-    % tol: порог сходимости (по умолчанию 1e-5)
-    % max_iter: макс. число итераций (по умолчанию 50)
-    
-    if nargin < 2, tol = 1e-5; end
-    if nargin < 3, max_iter = 50; end
-    
-    [n_chan, ~, n_epochs] = size(Covs);
-    
-    % 1. Инициализация: начинаем с обычного евклидова среднего
-    M = mean(Covs, 3); 
-    
-    for iter = 1:max_iter
-        % Принудительная симметризация (защита от ошибок округления)
-        M = (M + M') / 2; 
-        
-        % Разложение текущего среднего M для перехода в касательное пространство
-        [V, D] = eig(M);
-        d = diag(D);
-        d(d < eps) = eps; % Защита от нулей/отрицательных значений
-        
-        % Нам понадобятся M^(-1/2) и M^(1/2)
-        M_inv_half = V * diag(1 ./ sqrt(d)) * V';
-        M_half = V * diag(sqrt(d)) * V';
-        
-        tangent_mean = zeros(n_chan, n_chan);
-        
-        % 2. Проецируем все матрицы в касательное пространство ВОКРУГ текущего M
-        for i = 1:n_epochs
-            C_i = Covs(:,:,i);
-            C_i = (C_i + C_i') / 2;
-            
-            % Отбеливание (относительная ковариация)
-            C_rel = M_inv_half * C_i * M_inv_half;
-            C_rel = (C_rel + C_rel') / 2;
-            
-            [Vc, Dc] = eig(C_rel);
-            dc = diag(Dc);
-            dc(dc < eps) = eps;
-            
-            % Риманов логарифм (это вектор в касательном пространстве)
-            log_C_rel = Vc * diag(log(dc)) * Vc';
-            
-            % Суммируем векторы
-            tangent_mean = tangent_mean + log_C_rel;
-        end
-        
-        % 3. Ищем среднее в касательном пространстве (это и есть градиент)
-        tangent_mean = tangent_mean / n_epochs;
-        
-        % Проверка сходимости: если градиент исчез, значит мы в центре масс!
-        grad_norm = norm(tangent_mean, 'fro');
-        if grad_norm < tol
-            % disp(['Риманово среднее найдено за ', num2str(iter), ' итераций.']);
-            break;
-        end
-        
-        % 4. Возврат на многообразие (Exponential map)
-        % Двигаемся из M в направлении градиента
-        [Vt, Dt] = eig(tangent_mean);
-        exp_tangent = Vt * diag(exp(diag(Dt))) * Vt';
-        
-        % Обновляем центральную точку
-        M = M_half * exp_tangent * M_half;
-    end
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function [v] = cov2upper(C)
 

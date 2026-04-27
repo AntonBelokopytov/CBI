@@ -13,8 +13,8 @@ ft_defaults;
 %% =====================================================================
 % LOAD DATA
 % =====================================================================
-sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_OFF_EEG_clean_epochs.fif';
-% sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_3_CenterOut_epochs.fif';
+% sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_OFF_EEG_clean_epochs.fif';
+sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_3_CenterOut_epochs.fif';
 
 cfg = [];
 cfg.dataset = sub_path;
@@ -44,12 +44,12 @@ cfg.colorbar     = 'yes';
 N_trials = numel(Xinf.trial)
 
 %%
-fmin = 9;
-fmax = 14;
+fmin = 15;
+fmax = 25;
 Ws = 1/fmin;   
 Ss = Ws/2; 
-% Ws = 1;   
-% Ss = 1; 
+% Ws = 0.5;   
+% Ss = 0.25; 
 
 [b_band, a_band] = butter(4, [fmin fmax] / (Fs/2), 'bandpass');
 
@@ -72,25 +72,28 @@ for tr_i = 1:N_trials
 end
 
 %%
-idxs = [  0,   1,   2,   3,   6,   8,  12,  13,  15,  16,  17,  19,  22,...
-        24,  25,  28,  30,  32,  33,  35,  37,  39,  41,  42,  44,  45,...
-        48,  50,  51,  55,  57,  58,  59,  62,  63,  65,  69,  70,  73,...
-        74,  75,  78,  79,  82,  85,  88,  89,  92,  93,  94,  97, 100,...
-       101, 103, 105, 106, 110, 111, 112, 117, 118, 121, 122, 124, 126,...
-       128, 131, 132, 134, 136, 137, 138] + 1;
+% idxs = [  0,   1,   2,   3,   6,   8,  12,  13,  15,  16,  17,  19,  22,...
+%         24,  25,  28,  30,  32,  33,  35,  37,  39,  41,  42,  44,  45,...
+%         48,  50,  51,  55,  57,  58,  59,  62,  63,  65,  69,  70,  73,...
+%         74,  75,  78,  79,  82,  85,  88,  89,  92,  93,  94,  97, 100,...
+%        101, 103, 105, 106, 110, 111, 112, 117, 118, 121, 122, 124, 126,...
+%        128, 131, 132, 134, 136, 137, 138] + 1;
 
-% idxs = [  1,   3,   4,   5,   7,   8,  12,  14,  15,  17,  21,  22,  25,...
-%         26,  28,  29,  31,  33,  36,  37,  39,  40,  42,  44,  48,  49,...
-%         50,  53,  55,  56,  59,  61,  63,  64,  66,  67,  71,  72,  73,...
-%         74,  76,  77,  80,  81,  85,  86,  89,  90,  92,  94,  98,  99,...
-%        101, 103, 108, 109, 110, 111, 114, 116, 117, 120, 121, 124, 125,...
-%        127, 128, 130, 131, 134, 136, 138, 141, 142, 144, 146, 147] + 1;
+idxs = [  1,   3,   4,   5,   7,   8,  12,  14,  15,  17,  21,  22,  25,...
+        26,  28,  29,  31,  33,  36,  37,  39,  40,  42,  44,  48,  49,...
+        50,  53,  55,  56,  59,  61,  63,  64,  66,  67,  71,  72,  73,...
+        74,  76,  77,  80,  81,  85,  86,  89,  90,  92,  94,  98,  99,...
+       101, 103, 108, 109, 110, 111, 114, 116, 117, 120, 121, 124, 125,...
+       127, 128, 130, 131, 134, 136, 138, 141, 142, 144, 146, 147] + 1;
 
+Ntr = 200;
 X_eps_cond = X_tr_epochs(:,:,:,idxs);
 X_eps = X_eps_cond(:,:,:);
+X_eps = X_eps_cond(:,:,1:end);
 
 z_eps_cond = Z_tr_epochs(:,:,idxs);
 z_eps = z_eps_cond(6:8,:);
+z_eps = z_eps_cond(6:8,1:end);
 
 X_filt_cond = X_filt(:,:,idxs);
 
@@ -98,9 +101,14 @@ pos = Xinf.elec.chanpos;
 Dists = pdist2(pos, pos); 
 
 ex_variable = mean(z_eps,1);
-% [W, A, corrs] = espoc_laplace(X_eps, mean(z_eps,1), Dists);
+ex_variable = (ex_variable - mean(ex_variable)) / std(ex_variable);
+
+Z_pos = max(0, -ex_variable);  
+
+%%
 % [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc(X_eps, ex_variable);
-[W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc_grad(X_eps, ex_variable);
+[W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoct_csp(X_eps, ex_variable);
+% [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc_riemann(X_eps, ex_variable);
 
 figure;
 stem(corrs_in')
@@ -117,14 +125,14 @@ end
 [W,A] = spoc(X_eps,ex_variable);
 
 corrs_sp_in = [];
-corrs_sp_ex = [];
+corrs_sp_ex = []; Env = [];
 for w_i = 1:size(W,2)
-    Env = [];
     for ep_i = 1:size(X_eps,3)
-        Env(ep_i) = W(:,w_i)' * Epochs_cov(:,:,ep_i) * W(:,w_i);
+        Env(w_i,ep_i) = W(:,w_i)' * Epochs_cov(:,:,ep_i) * W(:,w_i);
     end
-    corrs_sp_in(w_i) = corr(Env',Zpr_in');
-    corrs_sp_ex(w_i) = corr(Env',ex_variable');
+    Env(w_i,:) = (Env(w_i,:) - mean(Env(w_i,:))) ./ std(Env(w_i,:));
+    corrs_sp_in(w_i) = corr(Env(w_i,:)',Zpr_in');
+    corrs_sp_ex(w_i) = corr(Env(w_i,:)',ex_variable');
 end
 
 stem(corrs_sp_in)
@@ -180,7 +188,7 @@ grid on;
 
 %%
 src_idx = 1;
-comp_idx = 33;
+comp_idx = 1;
 
 % wx = W(src_idx,:,comp_idx)';
 % ax = A(src_idx,:,comp_idx);
