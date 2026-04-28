@@ -9,9 +9,8 @@ import mne
 import numpy as np
 
 # %%
-fpath = "D:/OS(CURRENT)/data/parkinson/pathology/Patient_1_CenterOut_OFF_EEG_clean_epochs.fif"
-
-# %%
+# fpath = "D:/OS(CURRENT)/data/parkinson/pathology/Patient_1_CenterOut_OFF_EEG_clean_epochs.fif"
+fpath = "D:/OS(CURRENT)/data/parkinson/control/Control_7_CenterOut_epochs.fif"
 epochs = mne.read_epochs(fpath,preload=True)
 
 # %% 

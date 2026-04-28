@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
+ft_path = 'C:\Users\ansbel\Documents\GitHub\CBI\site-packages\fieldtrip';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -14,7 +14,7 @@ ft_defaults;
 % LOAD DATA
 % =====================================================================
 % sub_path = 'D:\OS(CURRENT)\data\parkinson\pathology\Patient_1_CenterOut_OFF_EEG_clean_epochs.fif';
-sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_3_CenterOut_epochs.fif';
+sub_path = 'D:\OS(CURRENT)\data\parkinson\control\Control_7_CenterOut_epochs.fif';
 
 cfg = [];
 cfg.dataset = sub_path;
@@ -79,12 +79,12 @@ end
 %        101, 103, 105, 106, 110, 111, 112, 117, 118, 121, 122, 124, 126,...
 %        128, 131, 132, 134, 136, 137, 138] + 1;
 
-idxs = [  1,   3,   4,   5,   7,   8,  12,  14,  15,  17,  21,  22,  25,...
-        26,  28,  29,  31,  33,  36,  37,  39,  40,  42,  44,  48,  49,...
-        50,  53,  55,  56,  59,  61,  63,  64,  66,  67,  71,  72,  73,...
-        74,  76,  77,  80,  81,  85,  86,  89,  90,  92,  94,  98,  99,...
-       101, 103, 108, 109, 110, 111, 114, 116, 117, 120, 121, 124, 125,...
-       127, 128, 130, 131, 134, 136, 138, 141, 142, 144, 146, 147] + 1;
+idxs = [  2,   3,   6,   7,   8,  11,  12,  15,  18,  20,  21,  24,  26,...
+        28,  30,  32,  34,  37,  38,  40,  42,  43,  46,  48,  50,  52,...
+        54,  57,  58,  61,  63,  65,  67,  68,  70,  71,  73,  77,  78,...
+        79,  81,  83,  84,  86,  89,  90,  92,  95,  96,  98, 101, 103,...
+       105, 106, 108, 109, 113, 115, 118, 119, 121, 123, 126, 127, 128,...
+       131, 133, 134, 137, 139, 141, 142, 145, 146] + 1;
 
 Ntr = 200;
 X_eps_cond = X_tr_epochs(:,:,:,idxs);
@@ -108,8 +108,16 @@ Z_pos = max(0, -ex_variable);
 %%
 % [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc(X_eps, ex_variable);
 [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoct_csp(X_eps, ex_variable);
+% [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoct_csp2(X_eps, ex_variable);
 % [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc_riemann(X_eps, ex_variable);
 
+xticks(1:38)
+xticklabels(Xinf.label)
+
+yticks(1:38)
+yticklabels(Xinf.label)
+
+%%
 figure;
 stem(corrs_in')
 hold on
@@ -140,55 +148,8 @@ stem(corrs_sp_ex)
 legend('eSPoC_{in}', 'eSPoC_{ex}', 'SPoC_{in}', 'SPoC_{ex}')
 
 %%
-figure('Color', 'w', 'Position', [100 100 1000 400]);
-
-% --- График 1: eSPoC ---
-subplot(1, 2, 1);
-hold on;
-stem(abs(corrs_in), 'Filled', 'Color', [0 0.6 0], 'MarkerFaceColor', [0 0.6 0], 'LineWidth', 1.5);
-stem(abs(corrs_ex), 'Color', [0.5 0.8 0.5], 'LineWidth', 1.5, 'LineStyle', '--');
-title('Компоненты eSPoC');
-xlabel('Индекс компоненты');
-ylabel('Абсолютная корреляция |r|');
-legend('Внутренняя', 'Внешняя');
-grid on;
-
-% --- График 2: SPoC ---
-subplot(1, 2, 2);
-hold on;
-% Для SPoC "родной" таргет - это внешний, рисуем его залитым
-stem(abs(corrs_sp_ex), 'Filled', 'Color', [0.8 0 0], 'MarkerFaceColor', [0.8 0 0], 'LineWidth', 1.5);
-stem(abs(corrs_sp_in), 'Color', [0.8 0.5 0.5], 'LineWidth', 1.5, 'LineStyle', '--');
-title('Компоненты SPoC');
-xlabel('Индекс компоненты');
-legend('Внешняя', 'Внутренняя');
-grid on;
-
-%%
-% pos_3d = Xinf.elec.chanpos(1:38, :); 
-% 
-% % 2. Вычисляем матрицу попарных расстояний (38x38)
-% dist_matrix = pdist2(pos_3d, pos_3d);
-% 
-% % 3. Определяем радиус соседства. 
-% % ВНИМАНИЕ: Проверьте единицы измерения в Xinf.elec.unit!
-% % Если там 'mm' (миллиметры), то радиус соседних электродов обычно ~30-45 мм.
-% % Если 'm' (метры), то радиус будет ~0.03 - 0.045.
-% % Если 'cm' (сантиметры), то ~3 - 4.5.
-% disp(['Единицы измерения координат: ', Xinf.elec.unit]); 
-% radius_val = 1; % Задайте подходящее значение (например, 40 мм)
-% 
-% % Вызываем функцию, передавая новые параметры через пары 'имя', значение
-% [W, A, corrs] = espoc_laplace(X_eps, mean(z_eps,1), ...
-%                               'dist_matrix', dist_matrix, ...
-%                               'radius', radius_val);
-% 
-% figure;
-% stem(corrs)
-
-%%
 src_idx = 1;
-comp_idx = 1;
+comp_idx = 35;
 
 % wx = W(src_idx,:,comp_idx)';
 % ax = A(src_idx,:,comp_idx);

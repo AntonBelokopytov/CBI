@@ -46,7 +46,7 @@ function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoct_csp(X_
         Zpr_ex(global_src_idx, :) = z_ex_current;
                 
         % Riemannian projection to extract clean patterns
-        [w, a, s] = synthesize_rcsp(z_in_current, S_epochs, C_ref_half);
+        [w, a, s] = synthesize_rcsp(z_in_current, S_epochs, C_ref_half, Cxx);
         
         % Evaluate performance
         Env = zeros(1, size(Epochs_cov, 3));
@@ -114,11 +114,11 @@ function [T_feat, S_epochs, C_ref_half] = get_tangent_features(Epochs_cov, Cxx)
     end
 end
 
-function [W, A, s] = synthesize_rcsp(Z_in, S_epochs, C_ref_half)    
+function [W, A, s] = synthesize_rcsp(Z_in, S_epochs, C_ref_half, Cxx)    
     [n_chan, ~, n_epochs] = size(S_epochs);
     
     % 1. Split target into positive (activation) and negative (deactivation) poles
-    Z_in = Z_in - median(Z_in);
+    Z_in = Z_in - mean(Z_in);
     Z_pos = max(0, Z_in);  
     Z_neg = max(0, -Z_in); 
     
@@ -136,7 +136,7 @@ function [W, A, s] = synthesize_rcsp(Z_in, S_epochs, C_ref_half)
     
     A_pos = (A_pos + A_pos') / 2 / sum_pos;
     A_neg = (A_neg + A_neg') / 2 / sum_neg;
-    
+
     % 3. Map back to manifold via Riemannian exponential
     C_pos = C_ref_half * expm(A_pos) * C_ref_half;
     C_pos = real((C_pos + C_pos') / 2);
@@ -144,6 +144,15 @@ function [W, A, s] = synthesize_rcsp(Z_in, S_epochs, C_ref_half)
     C_neg = C_ref_half * expm(A_neg) * C_ref_half;
     C_neg = real((C_neg + C_neg') / 2);
         
+    figure
+    imagesc(C_neg)
+
+    figure
+    imagesc(C_pos)
+
+    figure
+    imagesc(C_pos-C_neg)
+
     [Uw, S] = eig(C_pos, C_neg);    
     [s, idxs] = sort(diag(S), 'descend');
     Uw = Uw(:, idxs);

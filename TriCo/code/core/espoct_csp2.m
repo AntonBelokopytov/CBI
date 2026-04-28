@@ -1,14 +1,13 @@
-function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoct_csp_topo(X_epochs, Z, varargin)
-% ESPOCT_CSP_TOPO - Topological Riemannian eSPoC
-% Uses gradient flow divergence on the Riemannian manifold to find true
-% states of network activation (Sink) and deactivation (Source).
+function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoct_csp2(X_epochs, Z, varargin)
+% ESPOCT_CSP - Fully Riemannian eSPoC for spatial filtering.
+    
     opt = propertylist2struct(varargin{:});
     opt = set_defaults(opt, ...
                       'X_min_var_explained', 1, ...
                       'whitening_reg', 10e-5, ...
                       'cca_mode', 'regularized', ...
-                      'cca_reg', 10e-5, ...
-                      'radius_percentile', 15);  % 15th percentile of all distances defines the radius                      
+                      'cca_reg', 10e-5);
+                      
     % Step 1: Base Covariances
     [~, n_channels, n_epochs] = size(X_epochs);
     Epochs_cov = zeros(n_channels, n_channels, n_epochs);
@@ -20,7 +19,7 @@ function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoct_csp_to
     % Step 2: Map to Tangent Space to get features for CCA
     [Tcovs, S_epochs, C_ref_half] = get_tangent_features(Epochs_cov, Cxx);
     
-    % PCA to avoid P > N issues in CCA
+    % Optional but recommended: PCA to avoid P > N issues in CCA
     [Tcovs_pca, U_pca] = project_to_pc(Tcovs, opt.X_min_var_explained);
     
     % Step 3: Denoise target via CCA in Tangent Space
@@ -34,27 +33,20 @@ function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoct_csp_to
     
     % Project weights back from PCA space to full tangent feature space
     Vt = U_pca * Vt_pca;
-    Z_in = Vt' * Tcovs; % Cleaned internal target
+    Z_in = Vt' * Tcovs;
     
     n_global_src = size(Z_in, 1);
     
-    % Prepare outputs
-    W = zeros(n_global_src, n_channels, n_channels);
-    A = zeros(n_global_src, n_channels, n_channels);
-    eigenvalues = zeros(n_global_src, n_channels);
-    cr_in = zeros(1, n_channels);
-    cr_ex = zeros(1, n_channels);
-    
-    % Step 4: Topological Riemannian spatial filter synthesis
+    % Step 4: Riemannian spatial filter synthesis
     for global_src_idx = 1:n_global_src        
         z_in_current = Z_in(global_src_idx, :);
-        z_ex_current = Vz(:, global_src_idx)' * (Z - mean(Z, 2));
+        z_ex_current = Vz(:, global_src_idx)' * (Z(global_src_idx,:) - mean(Z(global_src_idx,:)));
         
         Zpr_in(global_src_idx, :) = z_in_current;
         Zpr_ex(global_src_idx, :) = z_ex_current;
                 
-        % Topological projection to extract clean patterns
-        [w, a, s] = synthesize_topological_rcsp(z_in_current, Tcovs, S_epochs, C_ref_half, Cxx, opt);
+        % Riemannian projection to extract clean patterns
+        [w, a, s] = synthesize_rcsp(z_in_current, S_epochs, C_ref_half, Cxx);
         
         % Evaluate performance
         Env = zeros(1, size(Epochs_cov, 3));
@@ -122,86 +114,23 @@ function [T_feat, S_epochs, C_ref_half] = get_tangent_features(Epochs_cov, Cxx)
     end
 end
 
-function [W, A, s] = synthesize_topological_rcsp(Z_in, T_feat, S_epochs, C_ref_half, Cxx, opt)    
+function [W, A, s] = synthesize_rcsp(Z_in, S_epochs, C_ref_half, Cxx)    
     [n_chan, ~, n_epochs] = size(S_epochs);
     
-    % 1. Fast Pairwise Distance Matrix in Tangent Space
-    T_sq = sum(T_feat.^2, 1);
-    Dist_matrix = sqrt(max(bsxfun(@plus, T_sq', T_sq) - 2 * (T_feat' * T_feat), 0));
-    
-    % ADAPTIVE RADIUS CALCULATION
-    % Get all non-zero distances to find a representative threshold
-    non_zero_dists = Dist_matrix(Dist_matrix > 0);
-    if isempty(non_zero_dists)
-        adaptive_radius = eps; 
-    else
-        % Use the requested percentile of the distance distribution as the radius
-        adaptive_radius = prctile(non_zero_dists, opt.radius_percentile);
+    % 1. Split target into positive (activation) and negative (deactivation) poles
+    Z_in = Z_in - mean(Z_in);
+    Z_pos = max(0, Z_in);  
+    Z_neg = max(0, -Z_in); 
+        
+    A = zeros(n_chan, n_chan);    
+    for i = 1:n_epochs
+        A = A + Z_in(i) * S_epochs(:, :, i);
     end
-    
-    % 2. Calculate Local Divergence
-    Div = zeros(1, n_epochs);
-    
-    for j = 1:n_epochs
-        % Find indices of points strictly within the adaptive radius
-        % (and exclude the point itself where distance == 0)
-        neighbor_mask = (Dist_matrix(:, j) > 0) & (Dist_matrix(:, j) <= adaptive_radius);
-        knn_idx = find(neighbor_mask);
+    A = A / norm(A);
+    % 3. Map back to manifold via Riemannian exponential
+    C = C_ref_half * expm(A) * C_ref_half;
         
-        if isempty(knn_idx)
-            Div(j) = 0; % No neighbors in radius -> zero flow
-            continue;
-        end
-        
-        knn_dists = Dist_matrix(knn_idx, j);
-        
-        % Avoid division by zero (should already be covered by > 0 check, but safe)
-        knn_dists(knn_dists < eps) = eps;
-        
-        % Flow from j to its neighbors in radius
-        delta_Z = Z_in(knn_idx) - Z_in(j); 
-        
-        % div Ci = sum((zj - zi) / dij)
-        Div(j) = sum(delta_Z(:) ./ knn_dists(:));
-    end
-    
-    % 3. Isolate points by divergence sign and compute weights
-    idx_source = find(Div > 0);
-    idx_sink   = find(Div < 0);
-    
-    % 4. Compute Weighted Average Vectors in Tangent Space
-    S_source = zeros(n_chan, n_chan);
-    S_sink   = zeros(n_chan, n_chan);
-    
-    % Process Source (Positive Divergence)
-    if ~isempty(idx_source)
-        w_source = Div(idx_source);
-        w_source = w_source / sum(w_source); 
-        
-        for i = 1:length(idx_source)
-            S_source = S_source + w_source(i) * S_epochs(:, :, idx_source(i));
-        end
-    end
-    
-    % Process Sink (Negative Divergence)
-    if ~isempty(idx_sink)
-        w_sink = abs(Div(idx_sink));
-        w_sink = w_sink / sum(w_sink); 
-        
-        for i = 1:length(idx_sink)
-            S_sink = S_sink + w_sink(i) * S_epochs(:, :, idx_sink(i));
-        end
-    end
-    
-    % 5. Map the weighted topological centers back to the Manifold
-    C_source = C_ref_half * expm(S_source) * C_ref_half;
-    C_source = real((C_source + C_source') / 2);
-        
-    C_sink = C_ref_half * expm(S_sink) * C_ref_half;
-    C_sink = real((C_sink + C_sink') / 2);
-        
-    % 6. Solve the Generalized Eigenvalue Problem (GEVP)
-    [Uw, S] = eig(C_sink, C_source);    
+    [Uw, S] = eig(C, Cxx);    
     [s, idxs] = sort(diag(S), 'descend');
     Uw = Uw(:, idxs);
     
@@ -211,12 +140,13 @@ function [W, A, s] = synthesize_topological_rcsp(Z_in, T_feat, S_epochs, C_ref_h
     for local_src_idx = 1:n_chan
         wi = real(Uw(:, local_src_idx)); 
         
-        norm_val = wi' * C_source * wi;
+        % Safeguard normalization
+        norm_val = wi' * Cxx * wi;
         if norm_val < eps, norm_val = eps; end
         
         Wprn = wi / sqrt(norm_val);
         W(:, local_src_idx) = Wprn;
-        A(:, local_src_idx) = C_source * Wprn; 
+        A(:, local_src_idx) = Cxx * Wprn; 
     end
 end
 

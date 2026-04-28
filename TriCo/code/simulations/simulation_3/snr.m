@@ -22,14 +22,14 @@ Ts = 850; Ntr = 250;
 Fs = 250;
 Ws = 1;
 Ss = 1;
-nMC = 10; 
+nMC = 50; 
 
 % Задаем сетку SNR и фиксируем корреляцию таргета
 snr_range = logspace(-1.4, 1, 12);
 nSNRLevels = length(snr_range);
 fixed_target_corr = 0.8;
 
-labels = {'eSPoCtcsp', 'SPoCr2'};
+labels = {'eSPoCtcsp', 'SPoC'};
 nMethods = length(labels);
 
 % Массивы для хранения результатов
@@ -94,7 +94,7 @@ for mc_idx = 1:nMC
         a_all = zeros(nChan, nMethods);
         
         % ================= 1. eSPoC =================
-        [W_e, A_e] = espoct_csp_topo(X_epo_train, z_noisy_train);
+        [W_e, A_e] = espoct_csp(X_epo_train, z_noisy_train);
         if size(W_e, 3) > 1 || size(W_e, 1) == 1, W_e = squeeze(W_e(1,:,:)); A_e = squeeze(A_e(1,:,:)); end
         if ~isempty(W_e), w_all(:, 1) = W_e(:,1); a_all(:, 1) = A_e(:,1); end
         
