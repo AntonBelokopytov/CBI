@@ -1,4 +1,4 @@
-function [W, A, corrs_in, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc(X_epochs, Z, varargin)
+function [W, A, Vf, Vz, corrs_in, Feat, Epochs_cov, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc(X_epochs, Z, varargin)
 
 opt= propertylist2struct(varargin{:});
 opt= set_defaults(opt, ...

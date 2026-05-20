@@ -1,8 +1,8 @@
 close all
-clear
+clear all
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\2Git\fieldtrip';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -11,7 +11,7 @@ end
 ft_defaults;
 
 %%
-sub_path = 'Tumyalis_music_epochs.fif';
+sub_path = 'D:/OS(CURRENT)/scripts/2Git/TriCo/data/external/music_listening/Tumyalis_music_epochs.fif';
 
 cfg = [];
 cfg.dataset = sub_path;

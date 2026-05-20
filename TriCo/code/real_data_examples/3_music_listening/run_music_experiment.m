@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\2Git\fieldtrip';
+ft_path = 'C:\Users\anton\Documents\2Git\fieldtrip';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -11,7 +11,7 @@ end
 ft_defaults;
 
 %%
-sub_path = 'Tumyalis_music_epochs.fif';
+sub_path = 'D:/OS(CURRENT)/scripts/2Git/TriCo/data/external/music_listening/Tumyalis_music_epochs.fif';
 
 cfg = [];
 cfg.dataset = sub_path;
@@ -145,6 +145,51 @@ end
 Tcovs = Tangent_space(Covs);           % Tangent space projection
 N_epoch_trial = size(ep_wins,3);
 
+% %% =====================================================================
+% % EPOCH SEGMENTATION (WITHOUT PCA, WITH REGULARIZATION)
+% % =====================================================================
+% Wsize = 2;    % Window size in seconds
+% Ssize = 0.5;  % Step size in seconds
+% X_epo = []; time = [];
+% time_series_epochs = [];
+% 
+% for i=1:size(Epochs_filt,3)
+%     i
+%     % Нарезаем эпохи напрямую из отфильтрованных данных (полный набор каналов)
+%     ep_wins = epoch_data(Epochs_filt(:,:,i)', Fs, Wsize, Ssize);
+%     X_epo = cat(3, X_epo, ep_wins); 
+% 
+%     ts_wins = epoch_data(time_series(:,i), Fs, Wsize, Ssize);
+%     time_series_epochs = cat(2, time_series_epochs, ts_wins); 
+% 
+%     timeline = 0.5 + ( Wsize/2:Ssize:(size(ep_wins,3)*Ssize+Ssize) );
+%     if i>1
+%         timeline = timeline + time(end) + Wsize-Ssize;
+%     end
+%     time = [time, timeline];
+% end
+% 
+% % Ковариационные матрицы с Shrinkage регуляризацией
+% Covs = []; Covs_vec = [];
+% lambda = 0.1; % Коэффициент сжатия (настраиваемый параметр, обычно 0.01 - 0.1)
+% n_channels = size(X_epo, 2);
+% I = eye(n_channels);
+% 
+% for i=1:size(X_epo,3)
+%     C = cov(X_epo(:,:,i));
+% 
+%     % Регуляризация (Ledoit-Wolf style)
+%     nu = trace(C) / n_channels;
+%     C_reg = (1 - lambda) * C + lambda * nu * I;
+% 
+%     Covs(:,:,i) = C_reg;
+%     Covs_vec(i,:) = cov2upper(C_reg);
+% end
+% 
+% % Теперь проекция в тангенциальное пространство должна пройти без ошибок
+% Tcovs = Tangent_space(Covs);           
+% N_epoch_trial = size(ep_wins,3);
+
 %%
 BADS;
 ep_mask = true(1,size(X_epo,3));
@@ -172,7 +217,8 @@ u.metric = 'euclidean';
 u.target_metric = 'euclidean';
 
 % Low-dimensional embedding of epochs
-R = u.fit_transform(Tcovs(:,ep_mask)');
+% R = u.fit_transform(Tcovs(:,ep_mask)');
+R = u.fit_transform(Tcovs');
 
 Rmean = R - mean(R,1);
 
@@ -215,7 +261,8 @@ legend({'component 1', 'component 2', 'component 3'})
 % =====================================================================
 
 % Run eSPoC
-[W, A, Vf, Vz, corrs, VecCov, Epochs_cov, eigenvalues] = espoc(X_epo(:,:,ep_mask), R');
+% [W, A, Vf, Vz, corrs, VecCov, Epochs_cov, eigenvalues] = espoc(X_epo(:,:,ep_mask), R');
+[W, A, Vf, Vz, corrs, VecCov, Epochs_cov] = espoc(X_epo, R');
 
 % Plot correlation values
 figure;
@@ -538,7 +585,7 @@ zlabel('Canonical axis 3')
 %%
 % Select global source and local component
 gl_src_idx  = 3;
-lcl_src_idx = 28;
+lcl_src_idx = 1;
 
 % Back-project spatial pattern and spatial filter to sensor space
 ax = U*A(gl_src_idx,:,lcl_src_idx)';
