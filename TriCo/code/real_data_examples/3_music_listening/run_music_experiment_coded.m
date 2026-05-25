@@ -12,7 +12,7 @@ sub_path = ['D:/OS(CURRENT)/scripts/2Git/TriCo/data/external/music_listening/', 
 BADS = load('D:\OS(CURRENT)\data\music\exp2\BADS.mat').BADS.(sub_name);
 
 % --- Filtering & Epoching Params ---
-freq_band  = [9, 14];       % Bandpass frequencies
+freq_band  = [15, 25];       % Bandpass frequencies
 n_channels = 38;            % Only EEG channels
 Wsize      = 2;             % Window size in seconds
 Ssize      = 0.5;           % Step size in seconds
@@ -130,7 +130,7 @@ for i=1:size(Epfilt_pca,3)
     time = [time, timeline];
 end
 
-Covs = zeros(size(X_epo,1), size(X_epo,1), size(X_epo,3)); 
+Covs = zeros(size(X_epo,2), size(X_epo,2), size(X_epo,3)); 
 for i=1:size(X_epo,3)
     Covs(:,:,i) = cov(X_epo(:,:,i));
 end
@@ -270,11 +270,13 @@ xticklabels(conditions);
 % =====================================================================
 chs = size(Xfiltpca, 1);
 samples_per_epoch = size(Xfiltpca, 2) / nEpochs; 
-corrmax = zeros(3, 100);
-corrmin = zeros(3, 100);
+
+nMC = 1;
+corrmax = zeros(3, nMC);
+corrmin = zeros(3, nMC);
 disp('Running Permutation Test...');
 
-parfor i = 1:100
+parfor i = 1:nMC
     r_idx = fix(rand * size(Xfiltpca, 2));
     XCirc = circshift(Xfiltpca, [0, r_idx]);
     mask_ts_shifted = circshift(mask_ts, [0, r_idx]);
@@ -337,8 +339,8 @@ xlabel('Canonical axis 1'); ylabel('Canonical axis 2'); zlabel('Canonical axis 3
 %% =====================================================================
 % FIGURE 7: 2x2 Layout (Single Global & Local component)
 % =====================================================================
-gl_src_idx  = 1;
-lcl_src_idx = 1;
+gl_src_idx  = 3;
+lcl_src_idx = 30;
 ax = U*A(gl_src_idx,:,lcl_src_idx)';
 wx = U*W(gl_src_idx,:,lcl_src_idx)';
 

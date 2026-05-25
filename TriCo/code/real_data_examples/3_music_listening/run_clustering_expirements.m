@@ -42,7 +42,7 @@ conditions = {'(1) RS EC 1', '(2) RS EO 1', '(3) 2Hz', '(4) 05Hz', '(5) 4Hz', '(
               '(20) Waltz 6','(21) Waltz 7','(22) Waltz 8'};
 
 %%
-BADS = load('BADS.mat').BADS.Tumyalis
+BADS = load('D:\OS(CURRENT)\data\music\exp2\BADS.mat').BADS.Tumyalis
 BADS = fix(BADS * Fs)
 
 %% =====================================================================
