@@ -119,7 +119,7 @@ xlabel('Canonical axis 1'); ylabel('Canonical axis 2'); zlabel('Canonical axis 3
 %% =====================================================================
 % FIGURE 7: 2x2 Layout (Single Global & Local component)
 % =====================================================================
-gl_src_idx  = 2;
+gl_src_idx  = 1;
 lcl_src_idx = 1;
 ax = U*A(gl_src_idx,:,lcl_src_idx)';
 wx = U*W(gl_src_idx,:,lcl_src_idx)';

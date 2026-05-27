@@ -2,7 +2,7 @@
 % CONFIGURATION & PARAMETERS
 % =====================================================================
 % --- Paths & Subject ---
-sub_name = 'Tumyalis';
+sub_name = 'ShoOle';
 ft_path  = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
 sub_path = ['D:/OS(CURRENT)/scripts/2Git/TriCo/data/external/music_listening/', sub_name, '_music_epochs.fif'];
 
@@ -14,7 +14,7 @@ freq_band  = [15, 25];      % Bandpass frequencies
 n_channels = 38;            % Only EEG channels
 Wsize      = 2;             % Window size in seconds
 Ssize      = 0.5;           % Step size in seconds
-nMC = 1000; % Perm tests
+nMC = 200; % Perm tests
 
 % --- Experimental Conditions ---
 conditions = {'(1) RS EC 1', '(2) RS EO 1', '(3) 2Hz', '(4) 05Hz', '(5) 4Hz', ...
