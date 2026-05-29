@@ -181,10 +181,10 @@ end
 %% ================= Вычисление статистики =================
 mean_f_1 = squeeze(mean(filcorr_test_1, 1));
 mean_f_2 = squeeze(mean(filcorr_test_2, 1));
-mean_p_1 = squeeze(mean(patcorr_1, 1));   
-mean_p_2 = squeeze(mean(patcorr_2, 1));   
-mean_z_1 = squeeze(mean(zcorr_test_1, 1)); % НОВОЕ  
-mean_z_2 = squeeze(mean(zcorr_test_2, 1)); % НОВОЕ  
+mean_p_1 = squeeze(mean(patcorr_1, 1));  
+mean_p_2 = squeeze(mean(patcorr_2, 1));
+mean_z_1 = squeeze(mean(zcorr_test_1, 1));
+mean_z_2 = squeeze(mean(zcorr_test_2, 1));
 
 ci_f_1 = squeeze(1.96 * std(filcorr_test_1, 0, 1) / sqrt(nMC));
 ci_f_2 = squeeze(1.96 * std(filcorr_test_2, 0, 1) / sqrt(nMC));
