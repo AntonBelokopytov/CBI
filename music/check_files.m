@@ -3,28 +3,40 @@
 % =====================================================================
 close all; clear; clc;
 
-% --- Paths & Subject ---
-sub_name = 'Tumyalis';
-ft_path  = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
-sub_path = ['D:/OS(CURRENT)/scripts/2Git/TriCo/data/external/music_listening/', sub_name, '_music_epochs.fif'];
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
+sub_path = ['D:\Hyperscanning\Data\10.07\group 3\converted_to_fif\4. epochs_ica\NVX52_2200_ica_epochs.fif'];
 
 % Динамическая загрузка нужного поля из BADS.mat
-BADS = load('D:\OS(CURRENT)\data\music\exp2\BADS.mat').BADS.(sub_name);
+BADS = [];
 
 % --- Filtering & Epoching Params ---
-freq_band  = [9, 14];       % Bandpass frequencies
+freq_band  = [15, 25];      % Bandpass frequencies
 n_channels = 38;            % Only EEG channels
 Wsize      = 2;             % Window size in seconds
 Ssize      = 0.5;           % Step size in seconds
 
 % --- Experimental Conditions ---
-conditions = {'(1) RS EC 1', '(2) RS EO 1', '(3) 2Hz', '(4) 05Hz', '(5) 4Hz', ...
-              '(6) 1Hz', '(7) 3Hz', '(8) NoRy 1','(9) Waltz 1','(10) Waltz 2', ...
-              '(11) NoRy 2','(12) NoRy 3','(13) Waltz 3', '(14) NoRy 4', ...
-              '(15) Waltz 4','(16) NoRy 5','(17) Waltz 5','(18) RS EC 2', ...
-              '(19) RS EO 2', '(20) Waltz 6','(21) Waltz 7','(22) Waltz 8'};
+conditions = {'EC1',...
+ 'EO1',...
+ '2Hz',...
+ '05Hz',...
+ '4Hz',...
+ '1Hz',...
+ '3Hz',...
+ 'NoRy 1',...
+ 'Waltz 1',...
+ 'Waltz 2',...
+ 'NoRy 2',...
+ 'NoRy 3',...
+ 'Waltz 3',...
+ 'NoRy 4',...
+ 'Waltz 4',...
+ 'NoRy 5',...
+ 'Waltz 5',...
+ 'EC2',...
+ 'EO2'};
 nEpochs = length(conditions);
-
+ 
 %% =====================================================================
 % 2. FIELDTRIP INIT & DATA PREPARATION
 % =====================================================================
@@ -130,7 +142,7 @@ for i=1:size(Epfilt_pca,3)
     time = [time, timeline];
 end
 
-Covs = zeros(size(X_epo,1), size(X_epo,1), size(X_epo,3)); 
+Covs = zeros(size(X_epo,2), size(X_epo,2), size(X_epo,3)); 
 for i=1:size(X_epo,3)
     Covs(:,:,i) = cov(X_epo(:,:,i));
 end
@@ -153,7 +165,7 @@ end
 valid_cond_idx = cond_idx_epochs(ep_mask);
 boundaries = find(diff(valid_cond_idx) > 0);
 ticks = [0, boundaries, length(valid_cond_idx)];
-valid_Covs = Covs(:,:,ep_mask); % Только валидные матрицы для мощности
+valid_Covs = Covs(:,:,ep_mask); 
 
 %% =====================================================================
 % 6. UMAP EMBEDDING
@@ -338,7 +350,7 @@ xlabel('Canonical axis 1'); ylabel('Canonical axis 2'); zlabel('Canonical axis 3
 % FIGURE 7: 2x2 Layout (Single Global & Local component)
 % =====================================================================
 gl_src_idx  = 1;
-lcl_src_idx = 1;
+lcl_src_idx = 6;
 ax = U*A(gl_src_idx,:,lcl_src_idx)';
 wx = U*W(gl_src_idx,:,lcl_src_idx)';
 

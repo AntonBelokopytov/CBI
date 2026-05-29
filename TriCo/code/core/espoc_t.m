@@ -1,4 +1,4 @@
-function [W, A, Vf, Vz, corrs_in, Feat, Epochs_cov, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc(X_epochs, Z, varargin)
+function [W, A, Vf, Vz, corrs_in, Feat, Epochs_cov, corrs_ex, corrs_in_ex, Zpr_in, Zpr_ex] = espoc_t(X_epochs, Z, varargin)
 
 opt= propertylist2struct(varargin{:});
 opt= set_defaults(opt, ...
@@ -9,15 +9,11 @@ opt= set_defaults(opt, ...
 
 Z = (Z - mean(Z,2)) ./ std(Z,[],2);
 
-% Xraw = [];
-% for i=1:size(X_epochs,3)
-%     Xraw = [Xraw,X_epochs(:,:,i)'];
-% end
-% Xraw = Xraw - mean(Xraw,2);
-
 % ---
-[Feat, Cxx, Epochs_cov] = get_covariance_series(X_epochs);
-[Featdr, Uf] = project_to_pc(Feat, opt.X_min_var_explained);
+[Vec_cov, Cxx, Epochs_cov] = get_covariance_series(X_epochs);
+Vec_covT = Tangent_space(Epochs_cov);
+
+[Featdr, Uf] = project_to_pc(Vec_covT, opt.X_min_var_explained);
 Cff = cov(Featdr');
 
 if strcmp(opt.cca_mode, 'regularized')

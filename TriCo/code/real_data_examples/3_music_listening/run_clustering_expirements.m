@@ -1,8 +1,8 @@
 close all
-clear
+clear all
 clc
 
-ft_path = 'C:\Users\ansbel\Documents\2Git\fieldtrip';
+ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
 
 if ~exist('ft_defaults','file')
     addpath(ft_path);
@@ -11,7 +11,7 @@ end
 ft_defaults;
 
 %%
-sub_path = 'Tumyalis_music_epochs.fif';
+sub_path = 'D:/OS(CURRENT)/scripts/2Git/TriCo/data/external/music_listening/Tumyalis_music_epochs.fif';
 
 cfg = [];
 cfg.dataset = sub_path;
@@ -42,7 +42,7 @@ conditions = {'(1) RS EC 1', '(2) RS EO 1', '(3) 2Hz', '(4) 05Hz', '(5) 4Hz', '(
               '(20) Waltz 6','(21) Waltz 7','(22) Waltz 8'};
 
 %%
-BADS = load('BADS.mat').BADS.Tumyalis
+BADS = load('D:\OS(CURRENT)\data\music\exp2\BADS.mat').BADS.Tumyalis
 BADS = fix(BADS * Fs)
 
 %% =====================================================================
