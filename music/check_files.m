@@ -4,7 +4,7 @@
 close all; clear; clc;
 
 ft_path = 'C:\Users\anton\Documents\GitHub\CBI\site-packages\fieldtrip';
-sub_path = ['D:\Hyperscanning\Data\10.07\group 3\converted_to_fif\4. epochs_ica\NVX52_2200_ica_epochs.fif'];
+sub_path = ['D:\Hyperscanning\Data\9.07\group 3\converted_to_fif\4. ica_epochs\NVX52_2200_ica_epochs.fif'];
 
 % Динамическая загрузка нужного поля из BADS.mat
 BADS = [];
@@ -16,25 +16,25 @@ Wsize      = 2;             % Window size in seconds
 Ssize      = 0.5;           % Step size in seconds
 
 % --- Experimental Conditions ---
-conditions = {'EC1',...
- 'EO1',...
- '2Hz',...
- '05Hz',...
- '4Hz',...
- '1Hz',...
- '3Hz',...
- 'NoRy 1',...
- 'Waltz 1',...
- 'Waltz 2',...
- 'NoRy 2',...
- 'NoRy 3',...
- 'Waltz 3',...
- 'NoRy 4',...
- 'Waltz 4',...
- 'NoRy 5',...
- 'Waltz 5',...
- 'EC2',...
- 'EO2'};
+conditions = {'(1) EC1',...
+ '(2) EO1',...
+ '(3) 2Hz',...
+ '(4) 05Hz',...
+ '(5) 4Hz',...
+ '(6) 1Hz',...
+ '(7) 3Hz',...
+ '(8) NoRy 1',...
+ '(9) Waltz 1',...
+ '(10) Waltz 2',...
+ '(11) NoRy 2',...
+ '(12) NoRy 3',...
+ '(13) Waltz 3',...
+ '(14) NoRy 4',...
+ '(15) Waltz 4',...
+ '(16) NoRy 5',...
+ '(17) Waltz 5',...
+ '(18) EC2',...
+ '(19) EO2'};
 nEpochs = length(conditions);
  
 %% =====================================================================
@@ -118,6 +118,7 @@ for i = 1:size(Epochs_filt,3)
     Epfilt_pca(:,:,i) = U'*Epochs_filt(:,:,i);
 end
 Xfiltpca = U'*Xfilt;
+size(Xfiltpca)
 
 %% =====================================================================
 % 5. EPOCH SEGMENTATION & ARTIFACT MASKING
@@ -279,35 +280,53 @@ xticklabels(conditions);
 
 %% =====================================================================
 % PERMUTATION TEST (CIRCULAR TIME SHIFTS)
-% =====================================================================
+% ======================================================================
 chs = size(Xfiltpca, 1);
-samples_per_epoch = size(Xfiltpca, 2) / nEpochs; 
-corrmax = zeros(3, 100);
-corrmin = zeros(3, 100);
-disp('Running Permutation Test...');
+samples_per_epoch = size(Xfiltpca, 2) / nEpochs;
+NMC = 1000;
+Nworkers = 8;
+corrmax = zeros(3, NMC);
+corrmin = zeros(3, NMC);
 
-parfor i = 1:100
+fprintf('Running Permutation Test: NMC = %d with %d workers...\n', NMC, Nworkers);
+
+tic
+parfor (i=1:NMC,Nworkers)
     r_idx = fix(rand * size(Xfiltpca, 2));
+    
     XCirc = circshift(Xfiltpca, [0, r_idx]);
     mask_ts_shifted = circshift(mask_ts, [0, r_idx]);
     
     Eps_circ = reshape(XCirc, chs, samples_per_epoch, nEpochs);
     mask_ts_shifted_eps = reshape(mask_ts_shifted, samples_per_epoch, nEpochs);
+
+    XCirc = [];
+    mask_ts_shifted = [];
     
-    X_test = [];
+    X_test_cell = cell(1, nEpochs); 
+    
     for j = 1:nEpochs
         ep_wins = epoch_data(Eps_circ(:,:,j)', Fs, Wsize, Ssize);
         mask_ep_wins = epoch_data(double(mask_ts_shifted_eps(:,j)), Fs, Wsize, Ssize);
         valid_windows = all(mask_ep_wins, 1);
-        X_test = cat(3, X_test, ep_wins(:,:,valid_windows));
+        
+        X_test_cell{j} = ep_wins(:,:,valid_windows);
     end
     
-    neps = min(size(X_test,3),size(R,1));
+    Eps_circ = [];
+    mask_ts_shifted_eps = [];
+    
+    X_test = cat(3, X_test_cell{:}); 
+    
+    neps = min(size(X_test,3), size(R,1));
     [~,~,~,~,corrs_perm] = espoc(X_test(:,:,1:neps), R(1:neps,:)'); 
+    
     corrmax(:,i) = max(corrs_perm,[],2);
     corrmin(:,i) = min(corrs_perm,[],2);
 end
+toc
 
+%%
 corrmax1 = sort(max(corrmax,[],1),'descend');
 corrmin1 = sort(min(corrmin,[],1));
 alpha = 0.05;
@@ -347,10 +366,23 @@ legend(legend_handles2, conditions, 'Location', 'northeastoutside'); view(-45, 3
 xlabel('Canonical axis 1'); ylabel('Canonical axis 2'); zlabel('Canonical axis 3');
 
 %% =====================================================================
+% PLOT THE RESULTS
+% =====================================================================
+figure; set(gcf, 'Color', 'w');
+plot(worker_list, exec_times(1, :), '-o', 'LineWidth', 2, 'MarkerSize', 8, 'DisplayName', 'Threads');
+hold on;
+plot(worker_list, exec_times(2, :), '-s', 'LineWidth', 2, 'MarkerSize', 8, 'DisplayName', 'Processes');
+grid on;
+xlabel('Number of Workers');
+ylabel('Execution Time (seconds)');
+title(sprintf('Benchmark: Permutation Test (NMC = %d)', NMC));
+legend('Location', 'northeast');
+xticks(worker_list);
+%% =====================================================================
 % FIGURE 7: 2x2 Layout (Single Global & Local component)
 % =====================================================================
-gl_src_idx  = 1;
-lcl_src_idx = 6;
+gl_src_idx  = 2;
+lcl_src_idx = 26;
 ax = U*A(gl_src_idx,:,lcl_src_idx)';
 wx = U*W(gl_src_idx,:,lcl_src_idx)';
 

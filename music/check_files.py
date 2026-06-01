@@ -9,11 +9,14 @@ import mne
 import pandas as pd
 
 # %%
-fpath = 'D:/Hyperscanning/Data/10.07/group 2/converted_to_fif/4. ica_epochs/NVX52_2219_ica_epochs.fif'
+fpath = 'D:/Hyperscanning/Data/9.07/group 2/converted_to_fif/4. ica_epochs/NVX52_2200_ica_epochs.fif'
 epochs = mne.read_epochs(fpath,preload=True)
 
 # %%
 epochs.plot()
+
+# %%
+epochs.compute_psd(fmin=1,fmax=30).plot()
 
 # %%
 id_to_name = {v: k for k, v in epochs.event_id.items()}
